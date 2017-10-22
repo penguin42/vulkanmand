@@ -16,20 +16,10 @@
 #include <CL/cl.hpp>
 #include <iostream>
 #include <iomanip>
+#include <string>
+#include <fstream>
+#include <streambuf>
 
-const char *kern_hello = "__kernel void hello(__global uint* o) { \
-  int z = get_global_id(0); \
-  int y = get_global_id(1); \
-  int x = get_global_id(2); \
-  int zr = get_global_size(0); \
-  int yr = get_global_size(1); \
-  int xr = get_global_size(2); \
-  float zf = ((float)z - ((float)zr)/2) / (float)zr; \
-  float yf = ((float)y - ((float)yr)/2) / (float)yr; \
-  float xf = ((float)x - ((float)xr)/2) / (float)xr; \
-\
-  o[z*yr*xr + y*xr + x] = ((zf * zf) + (yf * yf) + (xf * xf)) <  0.25; \
-}";
 #define SIZE 16
 
 static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Device &dev, cl::Context &con)
@@ -39,17 +29,20 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
   cl_uint* mapped;
 
   try {
-    cl::Program::Sources hello_src(1, std::make_pair(kern_hello,strlen(kern_hello)));
-    cl::Program hello_prog = cl::Program(con, hello_src);
-    hello_prog.build(devices);
+    std::ifstream kernstream("sphere.ocl");
+    std::string kern_str((std::istreambuf_iterator<char>(kernstream)), std::istreambuf_iterator<char>());
+    cl::Program::Sources src(1, std::make_pair(kern_str.c_str(),kern_str.length()));
+    cl::Program prog = cl::Program(con, src);
 
-    cl::Kernel hello_kern(hello_prog, "hello", &err);
+    prog.build(devices);
+
+    cl::Kernel kern(prog, "hello", &err);
     cl::Buffer output(con, CL_MEM_WRITE_ONLY,  SIZE * SIZE * SIZE * sizeof(cl_uint));
-    hello_kern.setArg(0, output);
+    kern.setArg(0, output);
     cl::CommandQueue queue(con, dev);
     cl::Event event;
     err = queue.enqueueNDRangeKernel(
-        hello_kern,
+        kern,
         cl::NullRange, /* Offsets */
         cl::NDRange(SIZE,SIZE,SIZE), /* Global range */
         cl::NullRange /* Local range */
