@@ -47,6 +47,12 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
         cl::NDRange(SIZE,SIZE,SIZE), /* Global range */
         cl::NullRange /* Local range */
     );
+    if (err) {
+      cl::STRING_CLASS buildlog;
+      prog.getBuildInfo(dev, CL_PROGRAM_BUILD_LOG, &buildlog);
+      std::cerr << "enqueueNDRangeKernel gave " << err << " Build log: " << buildlog << std::endl;
+      return err;
+    }
     std::cerr << __func__ << "NDRangeKernel gave: " << err << std::endl;
     mapped = (cl_uint*)queue.enqueueMapBuffer(output, CL_TRUE /* blocking */, CL_MAP_READ,
                            0 /* offset */, 
