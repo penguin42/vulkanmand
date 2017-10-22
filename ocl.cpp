@@ -20,7 +20,7 @@
 #include <fstream>
 #include <streambuf>
 
-#define SIZE 16
+#define SIZE 128
 
 static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Device &dev, cl::Context &con)
 {
@@ -41,11 +41,14 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
     kern.setArg(0, output);
     cl::CommandQueue queue(con, dev);
     cl::Event event;
+    std::vector<cl::Event> events;
     err = queue.enqueueNDRangeKernel(
         kern,
         cl::NullRange, /* Offsets */
         cl::NDRange(SIZE,SIZE,SIZE), /* Global range */
-        cl::NullRange /* Local range */
+        cl::NullRange, /* Local range */
+        NULL,
+        &event /* When we're done */
     );
     if (err) {
       cl::STRING_CLASS buildlog;
@@ -54,14 +57,17 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
       return err;
     }
     std::cerr << __func__ << "NDRangeKernel gave: " << err << std::endl;
+    /* Get the map to wait for the kernel to finish */
+    events.push_back(event);
+    cl::Event eventMap;
     mapped = (cl_uint*)queue.enqueueMapBuffer(output, CL_TRUE /* blocking */, CL_MAP_READ,
                            0 /* offset */, 
                            SIZE * SIZE * SIZE * sizeof(cl_uint) /* size */,
-                           NULL /* event list to wait for */,
-                           &event,
+                           &events,
+                           &eventMap,
                            &err);
     std::cerr << __func__ << "enqueueMapBuffer gave: " << err << std::endl;
-    event.wait();
+    eventMap.wait();
   }
   catch (...) {
     std::cerr << __func__ << ": Error: " << err << std::endl;
