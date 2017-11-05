@@ -8,6 +8,10 @@
  *
  * Note we need to stick to 1.1 since that's all Clover does on Mesa
  *
+ * Hmm oclgrind passes - but still gets some wrong data?
+ * try putting a barrier in but I don't see why I need it.
+ *   - and it doesn't help on the Radeon - but does under oclgrind?
+ *
  */
 
 #define CL_HPP_ENABLE_EXCEPTIONS
@@ -20,7 +24,7 @@
 #include <fstream>
 #include <streambuf>
 
-#define SIZE 128
+#define SIZE 32
 
 static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Device &dev, cl::Context &con)
 {
@@ -60,28 +64,33 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
     /* Get the map to wait for the kernel to finish */
     events.push_back(event);
     cl::Event eventMap;
+    queue.enqueueBarrierWithWaitList(&events);
     mapped = (cl_uint*)queue.enqueueMapBuffer(output, CL_TRUE /* blocking */, CL_MAP_READ,
                            0 /* offset */, 
                            SIZE * SIZE * SIZE * sizeof(cl_uint) /* size */,
                            &events,
                            &eventMap,
                            &err);
+    cl::Event eventBarrier2;
+    queue.enqueueBarrierWithWaitList(NULL,&eventBarrier2);
     std::cerr << __func__ << "enqueueMapBuffer gave: " << err << std::endl;
     eventMap.wait();
+    eventBarrier2.wait();
+
+    /* Just dump our buffer */
+    for(int z=0;z<SIZE;z++) {
+      std::cerr << __func__ << std::endl << "Z: " << z << std::endl;
+      for(int y=0;y<SIZE;y++) {
+        for(int x=0;x<SIZE;x++) {
+          std::cerr << std::setw(4) << mapped[z*SIZE*SIZE+y*SIZE+x];
+        }
+        std::cerr << std::endl;
+      }
+    }
   }
   catch (...) {
     std::cerr << __func__ << ": Error: " << err << std::endl;
     return -1;
-  }
-  /* Just dump our buffer */
-  for(int z=0;z<SIZE;z++) {
-    std::cerr << __func__ << std::endl << "Z: " << z << std::endl;
-    for(int y=0;y<SIZE;y++) {
-      for(int x=0;x<SIZE;x++) {
-        std::cerr << std::setw(4) << mapped[z*SIZE*SIZE+y*SIZE+x];
-      }
-      std::cerr << std::endl;
-    }
   }
 
   return 0;
