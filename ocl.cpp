@@ -24,7 +24,7 @@
 #include <fstream>
 #include <streambuf>
 
-#define SIZE 32
+#define SIZE 128
 
 static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Device &dev, cl::Context &con)
 {
