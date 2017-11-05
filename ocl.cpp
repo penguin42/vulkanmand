@@ -14,17 +14,17 @@
  *
  */
 
-#define CL_HPP_ENABLE_EXCEPTIONS
-#define CL_HPP_TARGET_OPENCL_VERSION 110
+#define CL_HPP_MINIMUM_OPENCL_VERSION 120
+#define CL_HPP_TARGET_OPENCL_VERSION 120
 
-#include <CL/cl.hpp>
+#include <CL/cl2.hpp>
 #include <iostream>
 #include <iomanip>
 #include <string>
 #include <fstream>
 #include <streambuf>
 
-#define SIZE 128
+#define SIZE 64
 
 static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Device &dev, cl::Context &con)
 {
@@ -35,10 +35,21 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
   try {
     std::ifstream kernstream("sphere.ocl");
     std::string kern_str((std::istreambuf_iterator<char>(kernstream)), std::istreambuf_iterator<char>());
-    cl::Program::Sources src(1, std::make_pair(kern_str.c_str(),kern_str.length()));
-    cl::Program prog = cl::Program(con, src);
+    std::vector<std::string> programStrings;
+    programStrings.push_back(kern_str);
+    cl::Program prog(con, programStrings);
 
-    prog.build(devices);
+    try {
+      prog.build(devices);
+    }
+    catch (...) {
+      cl_int buildErr = CL_SUCCESS;
+      auto buildInfo = prog.getBuildInfo<CL_PROGRAM_BUILD_LOG>(&buildErr);
+      for (auto &pair : buildInfo) {
+        std::cerr << "build gave " << pair.second << std::endl;
+      }
+      return err;
+    }
 
     cl::Kernel kern(prog, "hello", &err);
     cl::Buffer output(con, CL_MEM_WRITE_ONLY,  SIZE * SIZE * SIZE * sizeof(cl_uint));
@@ -50,16 +61,10 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
         kern,
         cl::NullRange, /* Offsets */
         cl::NDRange(SIZE,SIZE,SIZE), /* Global range */
-        cl::NullRange, /* Local range */
+        cl::NDRange(4,8,8), /* Local range */
         NULL,
         &event /* When we're done */
     );
-    if (err) {
-      cl::STRING_CLASS buildlog;
-      prog.getBuildInfo(dev, CL_PROGRAM_BUILD_LOG, &buildlog);
-      std::cerr << "enqueueNDRangeKernel gave " << err << " Build log: " << buildlog << std::endl;
-      return err;
-    }
     std::cerr << __func__ << "NDRangeKernel gave: " << err << std::endl;
     /* Get the map to wait for the kernel to finish */
     events.push_back(event);
