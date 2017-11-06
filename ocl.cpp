@@ -24,13 +24,13 @@
 #include <fstream>
 #include <streambuf>
 
-#define SIZE 64
+#define SIZE 256
 
 static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Device &dev, cl::Context &con)
 {
   std::cout << dev.getInfo<CL_DEVICE_NAME>() << std::endl;
   cl_int err = CL_SUCCESS;
-  cl_uint* mapped;
+  cl_uchar* mapped;
 
   try {
     std::ifstream kernstream("sphere.ocl");
@@ -52,7 +52,7 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
     }
 
     cl::Kernel kern(prog, "hello", &err);
-    cl::Buffer output(con, CL_MEM_WRITE_ONLY,  SIZE * SIZE * SIZE * sizeof(cl_uint));
+    cl::Buffer output(con, CL_MEM_WRITE_ONLY,  SIZE * SIZE * SIZE * sizeof(cl_uchar));
     kern.setArg(0, output);
     cl::CommandQueue queue(con, dev);
     cl::Event event;
@@ -61,7 +61,7 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
         kern,
         cl::NullRange, /* Offsets */
         cl::NDRange(SIZE,SIZE,SIZE), /* Global range */
-        cl::NDRange(4,8,8), /* Local range */
+        cl::NullRange, /* Local range */
         NULL,
         &event /* When we're done */
     );
@@ -70,9 +70,9 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
     events.push_back(event);
     cl::Event eventMap;
     queue.enqueueBarrierWithWaitList(&events);
-    mapped = (cl_uint*)queue.enqueueMapBuffer(output, CL_TRUE /* blocking */, CL_MAP_READ,
+    mapped = (cl_uchar*)queue.enqueueMapBuffer(output, CL_TRUE /* blocking */, CL_MAP_READ,
                            0 /* offset */, 
-                           SIZE * SIZE * SIZE * sizeof(cl_uint) /* size */,
+                           SIZE * SIZE * SIZE * sizeof(cl_uchar) /* size */,
                            &events,
                            &eventMap,
                            &err);
@@ -87,7 +87,7 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
       std::cerr << __func__ << std::endl << "Z: " << z << std::endl;
       for(int y=0;y<SIZE;y++) {
         for(int x=0;x<SIZE;x++) {
-          std::cerr << std::setw(4) << mapped[z*SIZE*SIZE+y*SIZE+x];
+          std::cerr << std::setw(2) << (int)mapped[z*SIZE*SIZE+y*SIZE+x];
         }
         std::cerr << std::endl;
       }
