@@ -33,7 +33,7 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
   cl_uchar* mapped;
 
   try {
-    std::ifstream kernstream("sphere.ocl");
+    std::ifstream kernstream("mandel.ocl");
     std::string kern_str((std::istreambuf_iterator<char>(kernstream)), std::istreambuf_iterator<char>());
     std::vector<std::string> programStrings;
     programStrings.push_back(kern_str);
