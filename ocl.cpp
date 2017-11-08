@@ -24,15 +24,17 @@
 #include <fstream>
 #include <streambuf>
 
-#define SIZE 256
+#define VOXSIZE 256
+#define IMGWIDTH 320
+#define IMGHEIGHT 240
 
 static void dump_voxels(cl_uchar *mapped) {
     /* Just dump our buffer */
-    for(int z=0;z<SIZE;z++) {
+    for(int z=0;z<VOXSIZE;z++) {
       std::cerr << __func__ << std::endl << "Z: " << z << std::endl;
-      for(int y=0;y<SIZE;y++) {
-        for(int x=0;x<SIZE;x++) {
-          std::cerr << std::setw(2) << (int)mapped[z*SIZE*SIZE+y*SIZE+x];
+      for(int y=0;y<VOXSIZE;y++) {
+        for(int x=0;x<VOXSIZE;x++) {
+          std::cerr << std::setw(2) << (int)mapped[z*VOXSIZE*VOXSIZE+y*VOXSIZE+x];
         }
         std::cerr << std::endl;
       }
@@ -72,37 +74,39 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
     }
 
     cl::Kernel mandkern(prog, "mandel", &err);
-    cl::Buffer voxels(con, CL_MEM_WRITE_ONLY,  SIZE * SIZE * SIZE * sizeof(cl_uchar));
+    cl::Buffer voxels(con, CL_MEM_READ_WRITE,  VOXSIZE * VOXSIZE * VOXSIZE * sizeof(cl_uchar));
     mandkern.setArg(0, voxels);
     cl::CommandQueue queue(con, dev);
-    cl::Event event;
+    cl::Event mandkernevent;
     std::vector<cl::Event> events;
     err = queue.enqueueNDRangeKernel(
         mandkern,
         cl::NullRange, /* Offsets */
-        cl::NDRange(SIZE,SIZE,SIZE), /* Global range */
+        cl::NDRange(VOXSIZE,VOXSIZE,VOXSIZE), /* Global range */
         cl::NullRange, /* Local range */
         NULL,
-        &event /* When we're done */
+        &mandkernevent /* When we're done */
     );
     std::cerr << __func__ << "NDRangeKernel gave: " << err << std::endl;
     /* Get the map to wait for the kernel to finish */
-    events.push_back(event);
-    cl::Event eventMap;
+    events.push_back(mandkernevent);
     queue.enqueueBarrierWithWaitList(&events);
-    mapped_voxels = (cl_uchar*)queue.enqueueMapBuffer(voxels, CL_TRUE /* blocking */, CL_MAP_READ,
-                           0 /* offset */, 
-                           SIZE * SIZE * SIZE * sizeof(cl_uchar) /* size */,
-                           &events,
-                           &eventMap,
-                           &err);
-    cl::Event eventBarrier2;
-    queue.enqueueBarrierWithWaitList(NULL,&eventBarrier2);
-    std::cerr << __func__ << "enqueueMapBuffer gave: " << err << std::endl;
-    eventMap.wait();
-    eventBarrier2.wait();
 
-    dump_voxels(mapped_voxels);
+    float config_c[] = {
+      // TODO
+      0.0, 0.0, 0.0, // Eye
+      0.0, 0.0, 0.0, // View plane mid
+      0.0, 0.0, 0.0, // View plane right
+      0.0, 0.0, 0.0, // View plane down
+    };
+    cl::Kernel raykern(prog, "ray", &err);
+    cl::Buffer image(con, CL_MEM_WRITE_ONLY, IMGWIDTH*IMGHEIGHT*sizeof(cl_uchar));
+    cl::Buffer config(con, CL_MEM_READ_ONLY|CL_MEM_USE_HOST_PTR, sizeof(config_c), config_c);
+    raykern.setArg(0, image);
+    raykern.setArg(1, voxels);
+    raykern.setArg(2, config);
+
+    // TODO run it and extract image
   }
   catch (...) {
     std::cerr << __func__ << ": Error: " << err << std::endl;

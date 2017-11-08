@@ -1,4 +1,12 @@
-__kernel void ray(__global uchar *image, __global uchar *voxels, global float* config) {
+int hitend(float cur, float dir, float lim) {
+  if (dir >= 0) {
+     return cur > lim;
+  } else {
+     return cur <= 0;
+  }
+}
+
+__kernel void ray(__global uchar *image, __global const uchar *voxels, global const float* config) {
   // Position in the output image
   int ix = get_global_id(0);
   int iy = get_global_id(1);
@@ -61,8 +69,10 @@ __kernel void ray(__global uchar *image, __global uchar *voxels, global float* c
 
   float result = 0.0f;
 
-  // TODO: Termination when it's gone too far
-  while (result <= 255.4f) {
+  while (result <= 255.4f &&
+         !hitend(vx, rx, (float)vxr) &&
+         !hitend(vy, ry, (float)vyr) &&
+         !hitend(vz, rz, (float)vzr)) {
     if (vx >= 0.0f && vx < vxr &&
         vy >= 0.0f && vy < vyr &&
         vz >= 0.0f && vz < vzr) {
