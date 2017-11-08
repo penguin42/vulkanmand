@@ -1,4 +1,4 @@
-__kernel void hello(__global uchar* o) {
+__kernel void mandel(__global uchar* o) {
   int z = get_global_id(2);
   int y = get_global_id(1);
   int x = get_global_id(0);

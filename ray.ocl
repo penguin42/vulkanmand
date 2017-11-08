@@ -1,0 +1,87 @@
+__kernel void ray(__global uchar *image, __global uchar *voxels, global float* config) {
+  // Position in the output image
+  int ix = get_global_id(0);
+  int iy = get_global_id(1);
+  int iw = get_global_size(0); // width
+  int ih = get_global_size(1); // height
+
+  // Size of the voxel array
+  int vzr = get_global_size(2);
+  int vyr = get_global_size(1);
+  int vxr = get_global_size(0);
+
+  // Eye position
+  float ex = config[0];
+  float ey = config[1];
+  float ez = config[2];
+  // Mid point of view plane
+  float vmx = config[3];
+  float vmy = config[4];
+  float vmz = config[5];
+  // View plane vector +x - half of width
+  float vxx = config[6];
+  float vxy = config[7];
+  float vxz = config[8];
+  // View plane vector +y - half of height
+  float vyx = config[9];
+  float vyy = config[10];
+  float vyz = config[11];
+
+  // -1.0 - 1.0 in view plane
+  float v1x = ((float)ix - ((float)iw)/2.0f)/(((float)iw)/2.0f);
+  float v1y = ((float)iy - ((float)ih)/2.0f)/(((float)ih)/2.0f);
+
+  // Pixel in view plane
+  float vx = vmx + v1x*vxx + v1y*vyx;
+  float vy = vmy + v1x*vxy + v1y*vyy;
+  float vz = vmz + v1x*vxz + v1y*vyz;
+
+  // Ray vector - from the eye through the view plane
+  float rx = vx - ex;
+  float ry = vy - ey;
+  float rz = vz - ez;
+
+  // We probably should use bresenham - but I'll just scale to make
+  // sure that none of rx/ry/rz are greater than a pixel
+  if (fabs(rx) > 1.0f) {
+    rx = rx / fabs(rx);
+    ry = ry / fabs(rx);
+    rz = rz / fabs(rx);
+  }
+  if (fabs(ry) > 1.0f) {
+    rx = rx / fabs(ry);
+    ry = ry / fabs(ry);
+    rz = rz / fabs(ry);
+  }
+  if (fabs(rz) > 1.0f) {
+    rx = rx / fabs(rz);
+    ry = ry / fabs(rz);
+    rz = rz / fabs(rz);
+  }
+
+  float result = 0.0f;
+
+  // TODO: Termination when it's gone too far
+  while (result <= 255.4f) {
+    if (vx >= 0.0f && vx < vxr &&
+        vy >= 0.0f && vy < vyr &&
+        vz >= 0.0f && vz < vzr) {
+      // OK, we've hit the voxel array
+      uint ivx = (int)vx;
+      uint ivy = (int)vy;
+      uint ivz = (int)vz;
+
+      uchar value = voxels[ivz*vyr*vxr + ivy*vxr + ivx];
+      if (value > 1) {
+        result += value;
+      }
+    }
+    vx += rx; 
+    vy += ry; 
+    vz += rz; 
+  }
+
+  if (result > 255.0f) result=255.0f;
+  image[iy*iw + ix] = (int)result;
+}
+
