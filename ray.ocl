@@ -13,11 +13,6 @@ __kernel void ray(__global uchar *image, __global const uchar *voxels, global co
   int iw = get_global_size(0); // width
   int ih = get_global_size(1); // height
 
-  // Size of the voxel array
-  int vzr = get_global_size(2);
-  int vyr = get_global_size(1);
-  int vxr = get_global_size(0);
-
   // Eye position
   float ex = config[0];
   float ey = config[1];
@@ -34,6 +29,11 @@ __kernel void ray(__global uchar *image, __global const uchar *voxels, global co
   float vyx = config[9];
   float vyy = config[10];
   float vyz = config[11];
+
+  // Size of the voxel array
+  int vxr = (int)config[12];
+  int vyr = (int)config[13];
+  int vzr = (int)config[14];
 
   // -1.0 - 1.0 in view plane
   float v1x = ((float)ix - ((float)iw)/2.0f)/(((float)iw)/2.0f);

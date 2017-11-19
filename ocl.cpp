@@ -16,6 +16,8 @@
 
 #define CL_HPP_MINIMUM_OPENCL_VERSION 120
 #define CL_HPP_TARGET_OPENCL_VERSION 120
+//#define CL_HPP_ENABLE_EXCEPTIONS
+
 
 #include <CL/cl2.hpp>
 #include <iostream>
@@ -52,7 +54,7 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
     std::ifstream mandkernstrm("mandel.ocl");
     std::string mandkstr((std::istreambuf_iterator<char>(mandkernstrm)), std::istreambuf_iterator<char>());
     programStrings.push_back(mandkstr);
-    std::ifstream raykernstrm("ray.ocl");
+    std::ifstream raykernstrm("ray-debug.ocl");
     std::string raykstr((std::istreambuf_iterator<char>(raykernstrm)), std::istreambuf_iterator<char>());
     programStrings.push_back(raykstr);
     cl::Program prog(con, programStrings);
@@ -88,25 +90,75 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
         &mandkernevent /* When we're done */
     );
     std::cerr << __func__ << "NDRangeKernel gave: " << err << std::endl;
-    /* Get the map to wait for the kernel to finish */
     events.push_back(mandkernevent);
     queue.enqueueBarrierWithWaitList(&events);
+    mandkernevent.wait();
+    queue.finish(); // Seem to need this on Mesa on Turks
 
+    //
+    //
+    //
+    //     ^
+    //     |y    
+    //     |   ^
+    //     |  /z
+    //     | /
+    //     |/
+    //     .-----> x
+    //
+    //     eye . ---> - viewplane - ---> [ voxel array ]
     float config_c[] = {
-      // TODO
-      0.0, 0.0, 0.0, // Eye
-      0.0, 0.0, 0.0, // View plane mid
-      0.0, 0.0, 0.0, // View plane right
-      0.0, 0.0, 0.0, // View plane down
+      // These are all in voxel coordinates - the real voxels run from 0..VOXSIZE
+      // in each dimension
+      VOXSIZE/2.0, VOXSIZE/2.0, -3.0 * VOXSIZE, // Eye
+      VOXSIZE/2.0, VOXSIZE/2.0, -2.0 * VOXSIZE, // View plane mid
+      (2.0*VOXSIZE)/IMGWIDTH, 0.0, 0.0, // View plane right
+      0.0, (2.0*VOXSIZE)/IMGHEIGHT, 0.0, // View plane down
+      VOXSIZE, VOXSIZE, VOXSIZE, // Dimensions of voxel array
     };
     cl::Kernel raykern(prog, "ray", &err);
+    std::cerr << __func__ << "raykern construct: err=" << err << std::endl;
     cl::Buffer image(con, CL_MEM_WRITE_ONLY, IMGWIDTH*IMGHEIGHT*sizeof(cl_uchar));
     cl::Buffer config(con, CL_MEM_READ_ONLY|CL_MEM_USE_HOST_PTR, sizeof(config_c), config_c);
     raykern.setArg(0, image);
     raykern.setArg(1, voxels);
     raykern.setArg(2, config);
 
-    // TODO run it and extract image
+    cl::Event raykernevent;
+    std::vector<cl::Event> rayevents;
+    err = queue.enqueueNDRangeKernel(
+       raykern,
+       cl::NullRange,
+       cl::NDRange(IMGWIDTH, IMGHEIGHT),
+       cl::NullRange,
+       NULL,
+       &raykernevent);
+    std::cerr << __func__ << "(ray)NDRangeKernel gave: " << err << std::endl;
+    rayevents.push_back(raykernevent);
+    raykernevent.wait();
+    cl::Event eventMap;
+    cl_uchar *mapped_image = (cl_uchar *)queue.enqueueMapBuffer(image, CL_TRUE /* blocking */, 
+                                                                   CL_MAP_READ,
+                                                                   0 /* offset */,
+                                                                   IMGWIDTH * IMGHEIGHT * sizeof(cl_uchar) /* size */,
+                                                                   &rayevents,
+                                                                   &eventMap,
+                                                                   &err);
+    eventMap.wait();
+    std::cerr << __func__ << "mapped_image: at" << (void *)mapped_image << " Err=" << err << std::endl;
+    //std::vector<cl::Event> mapevents;
+    //mapevents.push_back(eventMap);
+    //cl::Event rayBarrierEvent;
+    //queue.enqueueBarrierWithWaitList(&mapevents, &rayBarrierEvent);
+    //rayBarrierEvent.wait();
+    queue.finish();
+    
+    for(int iy=0;iy<IMGHEIGHT;iy++) {
+      for(int ix=0;ix<IMGWIDTH;ix++) {
+        std::cerr << std::setw(2) << std::hex << (int)mapped_image[iy*IMGWIDTH+ix];
+      }
+      std::cerr << std::endl;
+    }
   }
   catch (...) {
     std::cerr << __func__ << ": Error: " << err << std::endl;
