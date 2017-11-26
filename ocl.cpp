@@ -26,7 +26,7 @@
 #include <fstream>
 #include <streambuf>
 
-#define VOXSIZE 256
+#define VOXSIZE 128
 #define IMGWIDTH 320
 #define IMGHEIGHT 240
 
@@ -54,7 +54,7 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
     std::ifstream mandkernstrm("mandel.ocl");
     std::string mandkstr((std::istreambuf_iterator<char>(mandkernstrm)), std::istreambuf_iterator<char>());
     programStrings.push_back(mandkstr);
-    std::ifstream raykernstrm("ray-debug.ocl");
+    std::ifstream raykernstrm("ray.ocl");
     std::string raykstr((std::istreambuf_iterator<char>(raykernstrm)), std::istreambuf_iterator<char>());
     programStrings.push_back(raykstr);
     cl::Program prog(con, programStrings);
@@ -90,6 +90,9 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
         &mandkernevent /* When we're done */
     );
     std::cerr << __func__ << "NDRangeKernel gave: " << err << std::endl;
+    if (err) {
+        return err;
+    }
     events.push_back(mandkernevent);
     queue.enqueueBarrierWithWaitList(&events);
     mandkernevent.wait();
@@ -112,17 +115,19 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
       // in each dimension
       VOXSIZE/2.0, VOXSIZE/2.0, -3.0 * VOXSIZE, // Eye
       VOXSIZE/2.0, VOXSIZE/2.0, -2.0 * VOXSIZE, // View plane mid
-      (2.0*VOXSIZE)/IMGWIDTH, 0.0, 0.0, // View plane right
-      0.0, (2.0*VOXSIZE)/IMGHEIGHT, 0.0, // View plane down
+      VOXSIZE, 0.0, 0.0, // View plane right
+      0.0, VOXSIZE, 0.0, // View plane down
       VOXSIZE, VOXSIZE, VOXSIZE, // Dimensions of voxel array
     };
     cl::Kernel raykern(prog, "ray", &err);
     std::cerr << __func__ << "raykern construct: err=" << err << std::endl;
     cl::Buffer image(con, CL_MEM_WRITE_ONLY, IMGWIDTH*IMGHEIGHT*sizeof(cl_uchar));
+    cl::Buffer debugfloat(con, CL_MEM_WRITE_ONLY, IMGWIDTH*IMGHEIGHT*sizeof(cl_float));
     cl::Buffer config(con, CL_MEM_READ_ONLY|CL_MEM_USE_HOST_PTR, sizeof(config_c), config_c);
     raykern.setArg(0, image);
     raykern.setArg(1, voxels);
     raykern.setArg(2, config);
+    raykern.setArg(3, debugfloat);
 
     cl::Event raykernevent;
     std::vector<cl::Event> rayevents;
@@ -146,6 +151,16 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
                                                                    &err);
     eventMap.wait();
     std::cerr << __func__ << "mapped_image: at" << (void *)mapped_image << " Err=" << err << std::endl;
+    cl::Event eventMapF;
+    cl_float *mapped_debugfloat = (cl_float *)queue.enqueueMapBuffer(debugfloat, CL_TRUE /* blocking */, 
+                                                                   CL_MAP_READ,
+                                                                   0 /* offset */,
+                                                                   IMGWIDTH * IMGHEIGHT * sizeof(cl_float) /* size */,
+                                                                   NULL,
+                                                                   &eventMapF,
+                                                                   &err);
+    eventMapF.wait();
+    std::cerr << __func__ << "mapped_debugfloat: at" << (void *)mapped_debugfloat << " Err=" << err << std::endl;
     //std::vector<cl::Event> mapevents;
     //mapevents.push_back(eventMap);
     //cl::Event rayBarrierEvent;
@@ -155,7 +170,9 @@ static int got_dev(cl::Platform &plat, std::vector<cl::Device> &devices, cl::Dev
     
     for(int iy=0;iy<IMGHEIGHT;iy++) {
       for(int ix=0;ix<IMGWIDTH;ix++) {
-        std::cerr << std::setw(2) << std::hex << (int)mapped_image[iy*IMGWIDTH+ix];
+        //std::cerr << std::setw(2) << std::hex << (int)mapped_image[iy*IMGWIDTH+ix] << "/" << mapped_debugfloat[iy*IMGWIDTH+ix] << "|";
+        //std::cerr << std::setw(2) << std::hex << (int)mapped_image[iy*IMGWIDTH+ix];
+        std::cerr << (int)mapped_image[iy*IMGWIDTH+ix] << " ";
       }
       std::cerr << std::endl;
     }
