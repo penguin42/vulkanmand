@@ -1,0 +1,11 @@
+[package]
+name = "ocl"
+version = "0.1.0"
+authors = ["Dr. David Alan Gilbert <dave@treblig.org>"]
+
+[dependencies]
+glib-sys = { version = "0.5.0" }
+gdk-sys = { version = "0.5.0" }
+gdk-pixbuf-sys = { version = "0.5.0" }
+gdk-pixbuf = { version = "0.3.0" }
+gtk = { version = "0.3.0" }
