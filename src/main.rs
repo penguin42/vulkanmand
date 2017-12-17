@@ -12,7 +12,11 @@ pub struct App {
     pub topvbox: Box,
     pub hbox1: Box,
     pub outputpb: Pixbuf,
-    pub outputimage: Image
+    pub outputimage: Image,
+
+    pub powerhbox: Box,
+    pub powerlabel: Label,
+    pub powerscale: Scale
 }
 
 impl App {
@@ -41,7 +45,15 @@ impl App {
         let outputimage = Image::new_from_pixbuf(&outputpb);
         hbox1.pack_start(&outputimage, true, true, 0);
 
-        App { window, topvbox, hbox1, outputpb, outputimage }
+        let powerhbox = Box::new(Orientation::Horizontal, 2);
+        let powerlabel = Label::new("Power:");
+        let powerscale = Scale::new_with_range( gtk::Orientation::Horizontal, 1.0, 10.0, 0.25);
+        powerhbox.pack_start(&powerlabel, false, false, 0);
+        powerhbox.pack_end(&powerscale, true, true, 10 /* Pad: To stop slider overlapping text */);
+        topvbox.pack_end(&powerhbox, true, true, 0);
+
+        App { window, topvbox, hbox1, outputpb, outputimage,
+              powerhbox, powerlabel, powerscale }
     }
 }
 
