@@ -7,6 +7,9 @@ use gtk::*;
 use gdk_pixbuf::*;
 use std::process;
 
+mod bulbocl;
+use bulbocl::*;
+
 pub struct App {
     pub window: Window,
     pub topvbox: Box,
@@ -16,7 +19,9 @@ pub struct App {
 
     pub powerhbox: Box,
     pub powerlabel: Label,
-    pub powerscale: Scale
+    pub powerscale: Scale,
+
+    pub bulbocl: Bulbocl
 }
 
 impl App {
@@ -52,8 +57,10 @@ impl App {
         powerhbox.pack_end(&powerscale, true, true, 10 /* Pad: To stop slider overlapping text */);
         topvbox.pack_end(&powerhbox, true, true, 0);
 
+        let bulbocl = Bulbocl::new();
         App { window, topvbox, hbox1, outputpb, outputimage,
-              powerhbox, powerlabel, powerscale }
+              powerhbox, powerlabel, powerscale,
+              bulbocl: bulbocl }
     }
 }
 

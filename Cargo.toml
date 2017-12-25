@@ -9,3 +9,4 @@ gdk-sys = { version = "0.5.0" }
 gdk-pixbuf-sys = { version = "0.5.0" }
 gdk-pixbuf = { version = "0.3.0" }
 gtk = { version = "0.3.0" }
+ocl = { version = "0.16" }
