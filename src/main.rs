@@ -57,7 +57,8 @@ impl App {
         powerhbox.pack_end(&powerscale, true, true, 10 /* Pad: To stop slider overlapping text */);
         topvbox.pack_end(&powerhbox, true, true, 0);
 
-        let bulbocl = Bulbocl::new();
+        let mut bulbocl = Bulbocl::new();
+        bulbocl.calc_bulb(256);
         App { window, topvbox, hbox1, outputpb, outputimage,
               powerhbox, powerlabel, powerscale,
               bulbocl: bulbocl }
@@ -71,5 +72,6 @@ fn main() {
     }
 
     App::new().window.show_all();
+
     gtk::main();
 }
