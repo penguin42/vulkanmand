@@ -34,7 +34,7 @@ impl Bulbocl {
         if self.voxelsize != size {
             // Need to resize the buffer
             self.voxelsize = size;
-            self.voxelbuf = ocl::Buffer::<u8>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims((4,4,4)).build().unwrap();
+            self.voxelbuf = ocl::Buffer::<u8>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims((size,size,size)).build().unwrap();
         }
         self.mandkern.set_arg_buf_named("voxels", Some(&self.voxelbuf)).unwrap();
 
