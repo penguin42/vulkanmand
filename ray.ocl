@@ -93,6 +93,8 @@ __kernel void ray(__global uchar *image, __global const uchar *voxels, __global 
   }
 
   if (result > 255.0f) result=255.0f;
-  image[iy*iw + ix] = (int)result;
+  image[3*(iy*iw + ix)] = (int)result;
+  image[1+3*(iy*iw + ix)] = (int)result;
+  image[2+3*(iy*iw + ix)] = (int)result;
 }
 

@@ -32,7 +32,7 @@ impl Bulbocl {
 
         let imagewidth = 4; // Dummy initial dimension
         let imageheight = 4; // Dummy initial dimension
-        let imagebuf = ocl::Buffer::<u8>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims((4,4)).build().unwrap();
+        let imagebuf = ocl::Buffer::<u8>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims((3*4,4)).build().unwrap();
         let imageconfigbuf = ocl::Buffer::<f32>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims(RENDER_CONFIG_SIZE).build().unwrap();
         let imagedebugbuf = ocl::Buffer::<f32>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims((4,4)).build().unwrap();
 
@@ -68,7 +68,7 @@ impl Bulbocl {
         }
     }
 
-    pub fn render_image(&mut self, width: usize, height: usize) {
+    pub fn render_image(&mut self, result: &mut Vec<u8>, width: usize, height: usize) {
         if self.imagewidth != width || self.imageheight != height {
             // Need to resize the buffer
             // TODO: wait for the queue to empty
@@ -76,20 +76,39 @@ impl Bulbocl {
             self.renderkern.set_arg_buf_named("debug", None::<ocl::Buffer<f32>>).unwrap();
             self.imagewidth = width;
             self.imageheight = height;
-            self.imagebuf = ocl::Buffer::<u8>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_WRITE_ONLY).dims((width, height)).build().unwrap();
+            self.imagebuf = ocl::Buffer::<u8>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_WRITE_ONLY).dims((3*width, height)).build().unwrap();
             self.imagedebugbuf = ocl::Buffer::<f32>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_WRITE_ONLY).dims((width, height)).build().unwrap();
         }
-        // TODO: Set data in config buffer
+        // Set data in config buffer
+        let mut config = vec![0.0f32; RENDER_CONFIG_SIZE];
+        config[0]  = self.voxelsize as f32/2.0;      /* Eye x */
+        config[1]  = self.voxelsize as f32/2.0;      /* Eye y */
+        config[2]  = self.voxelsize as f32 * -3.0;   /* Eye z */
+        config[3]  = self.voxelsize as f32/2.0;      /* view-mid x */
+        config[4]  = self.voxelsize as f32/2.0;      /* view-mid y */
+        config[5]  = self.voxelsize as f32 * -2.0;   /* view-mid z */
+        config[6]  = self.voxelsize as f32;          /* view-right x */
+        config[7]  = 0.0;                            /* view-right y */
+        config[8]  = 0.0;                            /* view-right z */
+        config[9]  = 0.0;                            /* view-down x */
+        config[10] = self.voxelsize as f32;          /* view-down y */
+        config[11] = 0.0;                            /* view-down z */
+        config[12] = self.voxelsize as f32;          /* Voxel size x */
+        config[13] = self.voxelsize as f32;          /* Voxel size y */
+        config[14] = self.voxelsize as f32;          /* Voxel size z */
+        self.imageconfigbuf.write(&config).enq().unwrap();
+
         self.renderkern.set_arg_buf_named("voxels", Some(&self.voxelbuf)).unwrap();
         self.renderkern.set_arg_buf_named("image", Some(&self.imagebuf)).unwrap();
         self.renderkern.set_arg_buf_named("config", Some(&self.imageconfigbuf)).unwrap();
         self.renderkern.set_arg_buf_named("debug", Some(&self.imagedebugbuf)).unwrap();
         // TODO: Queue wait for the voxels
         unsafe {
-            self.mandkern.cmd().gwo((0,0)).gws((width, height)).enq().unwrap();
+            self.renderkern.cmd().gwo((0,0)).gws((width, height)).enq().unwrap();
         }
         // TODO: Queue wait for the image
-        // TODO: Copy the image out
+        // Copy the image out
+        self.imagebuf.read(result).enq().unwrap();
     }
 }
 

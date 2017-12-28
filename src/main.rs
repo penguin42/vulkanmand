@@ -35,6 +35,9 @@ impl App {
             main_quit();
             Inhibit(false)
         });
+        let mut bulbocl = Bulbocl::new();
+        bulbocl.calc_bulb(256);
+
         // Inside the window, bottom is controls, top is image and
         // more controls
         let topvbox = Box::new(Orientation::Vertical, 2);
@@ -44,7 +47,8 @@ impl App {
         topvbox.pack_start(&hbox1, true, true, 0);
 
         // Display the output image - it's a pixbuf in an Image
-        let vec = vec![0; 640*480*3];
+        let mut vec = vec![0; 640*480*3];
+        bulbocl.render_image(&mut vec, 640, 480);
         let outputpb = Pixbuf::new_from_vec(vec, gdk_pixbuf_sys::GDK_COLORSPACE_RGB, false /*alpha */, 8 /* bits/sample */,
                                             640, 480,640*3);
         let outputimage = Image::new_from_pixbuf(&outputpb);
@@ -57,8 +61,6 @@ impl App {
         powerhbox.pack_end(&powerscale, true, true, 10 /* Pad: To stop slider overlapping text */);
         topvbox.pack_end(&powerhbox, true, true, 0);
 
-        let mut bulbocl = Bulbocl::new();
-        bulbocl.calc_bulb(256);
         App { window, topvbox, hbox1, outputpb, outputimage,
               powerhbox, powerlabel, powerscale,
               bulbocl: bulbocl }
