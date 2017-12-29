@@ -1,10 +1,9 @@
 // Based on the tutorial at
 //   https://mmstick.github.io/gtkrs-tutorials/chapter_01.html
 extern crate gtk;
-extern crate gdk_pixbuf;
-extern crate gdk_pixbuf_sys;
+extern crate cairo;
 use gtk::*;
-use gdk_pixbuf::*;
+use cairo::*;
 use std::process;
 
 mod bulbocl;
@@ -14,7 +13,7 @@ pub struct App {
     pub window: Window,
     pub topvbox: Box,
     pub hbox1: Box,
-    pub outputpb: Pixbuf,
+    pub outputis: ImageSurface,
     pub outputimage: Image,
 
     pub powerhbox: Box,
@@ -47,11 +46,15 @@ impl App {
         topvbox.pack_start(&hbox1, true, true, 0);
 
         // Display the output image - it's a pixbuf in an Image
-        let mut vec = vec![0; 640*480*3];
-        bulbocl.render_image(&mut vec, 640, 480);
-        let outputpb = Pixbuf::new_from_vec(vec, gdk_pixbuf_sys::GDK_COLORSPACE_RGB, false /*alpha */, 8 /* bits/sample */,
-                                            640, 480,640*3);
-        let outputimage = Image::new_from_pixbuf(&outputpb);
+        let mut outputis = ImageSurface::create(Format::Rgb24, 640, 480).unwrap();
+        // TODO: Check the ImageSurface stride is what we expect with get_stride or better pass it
+        // into the OCL
+        //bulbocl.render_image(outputis.get_data().unwrap().as_mut_ptr(), 640, 480);
+        {
+            let mut id = outputis.get_data().unwrap();
+            bulbocl.render_image(&mut id, 640, 480);
+        }
+        let outputimage = Image::new_from_surface(Some(outputis.as_ref()));
         hbox1.pack_start(&outputimage, true, true, 0);
 
         let powerhbox = Box::new(Orientation::Horizontal, 2);
@@ -61,7 +64,7 @@ impl App {
         powerhbox.pack_end(&powerscale, true, true, 10 /* Pad: To stop slider overlapping text */);
         topvbox.pack_end(&powerhbox, true, true, 0);
 
-        App { window, topvbox, hbox1, outputpb, outputimage,
+        App { window, topvbox, hbox1, outputis: outputis, outputimage,
               powerhbox, powerlabel, powerscale,
               bulbocl: bulbocl }
     }

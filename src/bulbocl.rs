@@ -32,7 +32,7 @@ impl Bulbocl {
 
         let imagewidth = 4; // Dummy initial dimension
         let imageheight = 4; // Dummy initial dimension
-        let imagebuf = ocl::Buffer::<u8>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims((3*4,4)).build().unwrap();
+        let imagebuf = ocl::Buffer::<u8>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims((4*4,4)).build().unwrap();
         let imageconfigbuf = ocl::Buffer::<f32>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims(RENDER_CONFIG_SIZE).build().unwrap();
         let imagedebugbuf = ocl::Buffer::<f32>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims((4,4)).build().unwrap();
 
@@ -68,7 +68,7 @@ impl Bulbocl {
         }
     }
 
-    pub fn render_image(&mut self, result: &mut Vec<u8>, width: usize, height: usize) {
+    pub fn render_image(&mut self, result: &mut [u8], width: usize, height: usize) {
         if self.imagewidth != width || self.imageheight != height {
             // Need to resize the buffer
             // TODO: wait for the queue to empty
@@ -76,7 +76,7 @@ impl Bulbocl {
             self.renderkern.set_arg_buf_named("debug", None::<ocl::Buffer<f32>>).unwrap();
             self.imagewidth = width;
             self.imageheight = height;
-            self.imagebuf = ocl::Buffer::<u8>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_WRITE_ONLY).dims((3*width, height)).build().unwrap();
+            self.imagebuf = ocl::Buffer::<u8>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_WRITE_ONLY).dims((4*width, height)).build().unwrap();
             self.imagedebugbuf = ocl::Buffer::<f32>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_WRITE_ONLY).dims((width, height)).build().unwrap();
         }
         // Set data in config buffer
