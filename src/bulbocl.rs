@@ -1,6 +1,7 @@
 // based on the trival.rs example from the ocl crate
 
 extern crate ocl;
+extern crate nalgebra as na;
 
 const RENDER_CONFIG_SIZE : usize =  15;
 
@@ -72,7 +73,13 @@ impl Bulbocl {
         }
     }
 
-    pub fn render_image(&mut self, result: &mut [u8], width: usize, height: usize) {
+    pub fn render_image(&mut self, result: &mut [u8],
+                        width: usize, height: usize,
+                        eye: na::Vector3<f32>,
+                        vp_mid: na::Vector3<f32>,
+                        vp_right: na::Vector3<f32>,
+                        vp_down: na::Vector3<f32>,
+                        ) {
         if self.imagewidth != width || self.imageheight != height {
             // Need to resize the buffer
             // TODO: wait for the queue to empty
@@ -85,18 +92,18 @@ impl Bulbocl {
         }
         // Set data in config buffer
         let mut config = vec![0.0f32; RENDER_CONFIG_SIZE];
-        config[0]  = self.voxelsize as f32/2.0;      /* Eye x */
-        config[1]  = self.voxelsize as f32/2.0;      /* Eye y */
-        config[2]  = self.voxelsize as f32 * -3.0;   /* Eye z */
-        config[3]  = self.voxelsize as f32/2.0;      /* view-mid x */
-        config[4]  = self.voxelsize as f32/2.0;      /* view-mid y */
-        config[5]  = self.voxelsize as f32 * -2.0;   /* view-mid z */
-        config[6]  = self.voxelsize as f32;          /* view-right x */
-        config[7]  = 0.0;                            /* view-right y */
-        config[8]  = 0.0;                            /* view-right z */
-        config[9]  = 0.0;                            /* view-down x */
-        config[10] = self.voxelsize as f32;          /* view-down y */
-        config[11] = 0.0;                            /* view-down z */
+        config[0]  = eye[0] * self.voxelsize as f32; /* Eye x */
+        config[1]  = eye[1] * self.voxelsize as f32; /* Eye y */
+        config[2]  = eye[2] * self.voxelsize as f32; /* Eye z */
+        config[3]  = vp_mid[0] * self.voxelsize as f32;  /* view-mid x */
+        config[4]  = vp_mid[1] * self.voxelsize as f32;  /* view-mid y */
+        config[5]  = vp_mid[2] * self.voxelsize as f32;  /* view-mid z */
+        config[6]  = vp_right[0] * self.voxelsize as f32;  /* view-right x */
+        config[7]  = vp_right[1] * self.voxelsize as f32;  /* view-right y */
+        config[8]  = vp_right[2] * self.voxelsize as f32;  /* view-right z */
+        config[9]  = vp_down[0] * self.voxelsize as f32;   /* view-down x */
+        config[10] = vp_down[1] * self.voxelsize as f32;   /* view-down y */
+        config[11] = vp_down[2] * self.voxelsize as f32;   /* view-down z */
         config[12] = self.voxelsize as f32;          /* Voxel size x */
         config[13] = self.voxelsize as f32;          /* Voxel size y */
         config[14] = self.voxelsize as f32;          /* Voxel size z */

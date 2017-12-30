@@ -2,6 +2,7 @@
 //   https://mmstick.github.io/gtkrs-tutorials/chapter_01.html
 extern crate gtk;
 extern crate cairo;
+extern crate nalgebra as na;
 use gtk::*;
 use cairo::*;
 use std::process;
@@ -21,10 +22,6 @@ pub struct App {
     pub powerhbox: Box,
     pub powerlabel: Label,
     pub powerscale: Scale,
-}
-
-struct State {
-    power: f32
 }
 
 impl App {
@@ -67,6 +64,29 @@ impl App {
 
 }
 
+struct State {
+    power: f32,
+    // These vectors are in voxel space/voxelsize - i.e. 0..1 so 0.5,0.5 is over the middle
+    eye: na::Vector3<f32>,
+    // The eye looks towards the centre of the viewplane
+    vp_mid: na::Vector3<f32>,
+    // The viewplane is as big as the image, the point the eye looks towards
+    // is calculated by adding fractions of the right and down vectors
+    vp_right: na::Vector3<f32>,
+    vp_down: na::Vector3<f32>
+}
+
+impl State {
+    fn new() -> State {
+        State { power: 8.0,
+                eye: na::Vector3::new(0.5, 0.5, -3.0),
+                vp_mid: na::Vector3::new(0.5, 0.5, -2.0),
+                vp_right: na::Vector3::new(1.0, 0.0, 0.0),
+                vp_down: na::Vector3::new(0.0, 1.0, 0.0)
+        }
+    }
+}
+
 fn do_redraw(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, recalc_fractal: bool) {
     if recalc_fractal {
         bulbocl.calc_bulb(256, state.power);
@@ -74,7 +94,7 @@ fn do_redraw(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, recalc_fra
     app.outputimage.set_from_surface(None);
     {
         let mut id = app.outputis.get_data().unwrap();
-        bulbocl.render_image(&mut id, 640, 480);
+        bulbocl.render_image(&mut id, 640, 480, state.eye, state.vp_mid, state.vp_right, state.vp_down );
     }
     app.outputimage.set_from_surface(Some(app.outputis.as_ref()));
 }
@@ -96,7 +116,7 @@ fn main() {
         process::exit(1);
     }
     let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(App::new()));
-    let staterc : Rc<RefCell<State>> = Rc::new(RefCell::new(State { power: 8.0 }));
+    let staterc : Rc<RefCell<State>> = Rc::new(RefCell::new(State::new()));
     let bulboclrc : Rc<RefCell<Bulbocl>> = Rc::new(RefCell::new(bulbocl));
 
     do_redraw(&mut apprc.borrow_mut(), &mut bulboclrc.borrow_mut(), &mut staterc.borrow_mut(), true);
