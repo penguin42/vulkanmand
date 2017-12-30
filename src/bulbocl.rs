@@ -52,7 +52,7 @@ impl Bulbocl {
                   voxelsize: voxelsize, voxelbuf: voxelbuf }
     }
 
-    pub fn calc_bulb(&mut self, size: usize) {
+    pub fn calc_bulb(&mut self, size: usize, power: f32) {
         if self.voxelsize != size {
             // Need to resize the buffer
             // TODO: wait for the queue to empty

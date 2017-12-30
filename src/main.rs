@@ -70,20 +70,33 @@ impl App {
               powerhbox, powerlabel, powerscale,
             }
     }
+
 }
 
-fn wire_callbacks(app: Rc<RefCell<App>>, mut state: Rc<RefCell<State>>)
+fn do_redraw(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, recalc_fractal: bool) {
+    if recalc_fractal {
+        bulbocl.calc_bulb(256, state.power);
+    }
+    app.outputimage.set_from_surface(None);
+    {
+        let mut id = app.outputis.get_data().unwrap();
+        bulbocl.render_image(&mut id, 640, 480);
+    }
+    app.outputimage.set_from_surface(Some(app.outputis.as_ref()));
+}
+
+fn wire_callbacks(app: Rc<RefCell<App>>, bulbocl: Rc<RefCell<Bulbocl>>, state: Rc<RefCell<State>>)
 {
     let powerscale_adjust = app.borrow().powerscale.get_adjustment();
     powerscale_adjust.connect_value_changed(move |adj| {
         state.borrow_mut().power = adj.get_value() as f32;
-        //doredraw();
+        do_redraw(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), true);
     });
 }
 
 fn main() {
     let mut bulbocl = Bulbocl::new();
-    bulbocl.calc_bulb(256);
+    bulbocl.calc_bulb(256, 8.0);
 
     if gtk::init().is_err() {
         eprintln!("failed to init GTK app");
@@ -91,9 +104,10 @@ fn main() {
     }
     let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(App::new(&mut bulbocl)));
     let staterc : Rc<RefCell<State>> = Rc::new(RefCell::new(State { power: 8.0 }));
+    let bulboclrc : Rc<RefCell<Bulbocl>> = Rc::new(RefCell::new(bulbocl));
 
     apprc.borrow().window.show_all();
-    wire_callbacks(apprc.clone(), staterc.clone());
+    wire_callbacks(apprc.clone(), bulboclrc.clone(), staterc.clone());
 
     gtk::main();
 }
