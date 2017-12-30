@@ -28,7 +28,7 @@ struct State {
 }
 
 impl App {
-    fn new(bulbocl: &mut Bulbocl) -> App {
+    fn new() -> App {
         let window = Window::new(WindowType::Toplevel);
         window.set_title("Mandelbulb");
         window.set_wmclass("app-name", "Mandelbulb");
@@ -47,13 +47,7 @@ impl App {
         topvbox.pack_start(&hbox1, true, true, 0);
 
         // Display the output image - it's a pixbuf in an Image
-        let mut outputis = ImageSurface::create(Format::Rgb24, 640, 480).unwrap();
-        // TODO: Check the ImageSurface stride is what we expect with get_stride or better pass it
-        // into the OCL
-        {
-            let mut id = outputis.get_data().unwrap();
-            bulbocl.render_image(&mut id, 640, 480);
-        }
+        let outputis = ImageSurface::create(Format::Rgb24, 640, 480).unwrap();
 
         let outputimage = Image::new_from_surface(Some(outputis.as_ref()));
         hbox1.pack_start(&outputimage, true, true, 0);
@@ -95,17 +89,17 @@ fn wire_callbacks(app: Rc<RefCell<App>>, bulbocl: Rc<RefCell<Bulbocl>>, state: R
 }
 
 fn main() {
-    let mut bulbocl = Bulbocl::new();
-    bulbocl.calc_bulb(256, 8.0);
+    let bulbocl = Bulbocl::new();
 
     if gtk::init().is_err() {
         eprintln!("failed to init GTK app");
         process::exit(1);
     }
-    let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(App::new(&mut bulbocl)));
+    let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(App::new()));
     let staterc : Rc<RefCell<State>> = Rc::new(RefCell::new(State { power: 8.0 }));
     let bulboclrc : Rc<RefCell<Bulbocl>> = Rc::new(RefCell::new(bulbocl));
 
+    do_redraw(&mut apprc.borrow_mut(), &mut bulboclrc.borrow_mut(), &mut staterc.borrow_mut(), true);
     apprc.borrow().window.show_all();
     wire_callbacks(apprc.clone(), bulboclrc.clone(), staterc.clone());
 
