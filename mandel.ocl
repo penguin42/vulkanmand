@@ -1,4 +1,4 @@
-__kernel void mandel(__global uchar* o) {
+__kernel void mandel(__global uchar* o, float mandpow) {
   int z = get_global_id(2);
   int y = get_global_id(1);
   int x = get_global_id(0);
@@ -12,7 +12,6 @@ __kernel void mandel(__global uchar* o) {
 
 
   const int maxit = 80;
-  const float mandpow = 8.0f;
   uchar i;
   float lx,ly,lz;
   for(i=0,lx=0.0f,ly=0.0f,lz=0.0f;(i<maxit) && (lx*lx+ly*ly+lz*lz) < 2.0f;i++)
