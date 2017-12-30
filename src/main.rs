@@ -5,6 +5,8 @@ extern crate cairo;
 use gtk::*;
 use cairo::*;
 use std::process;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 mod bulbocl;
 use bulbocl::*;
@@ -19,12 +21,14 @@ pub struct App {
     pub powerhbox: Box,
     pub powerlabel: Label,
     pub powerscale: Scale,
+}
 
-    pub bulbocl: Bulbocl
+struct State {
+    power: f32
 }
 
 impl App {
-    fn new() -> App {
+    fn new(bulbocl: &mut Bulbocl) -> App {
         let window = Window::new(WindowType::Toplevel);
         window.set_title("Mandelbulb");
         window.set_wmclass("app-name", "Mandelbulb");
@@ -34,9 +38,6 @@ impl App {
             main_quit();
             Inhibit(false)
         });
-        let mut bulbocl = Bulbocl::new();
-        bulbocl.calc_bulb(256);
-
         // Inside the window, bottom is controls, top is image and
         // more controls
         let topvbox = Box::new(Orientation::Vertical, 2);
@@ -49,34 +50,50 @@ impl App {
         let mut outputis = ImageSurface::create(Format::Rgb24, 640, 480).unwrap();
         // TODO: Check the ImageSurface stride is what we expect with get_stride or better pass it
         // into the OCL
-        //bulbocl.render_image(outputis.get_data().unwrap().as_mut_ptr(), 640, 480);
         {
             let mut id = outputis.get_data().unwrap();
             bulbocl.render_image(&mut id, 640, 480);
         }
+
         let outputimage = Image::new_from_surface(Some(outputis.as_ref()));
         hbox1.pack_start(&outputimage, true, true, 0);
 
         let powerhbox = Box::new(Orientation::Horizontal, 2);
         let powerlabel = Label::new("Power:");
         let powerscale = Scale::new_with_range( gtk::Orientation::Horizontal, 1.0, 10.0, 0.25);
+        powerscale.set_value(8.0);
         powerhbox.pack_start(&powerlabel, false, false, 0);
         powerhbox.pack_end(&powerscale, true, true, 10 /* Pad: To stop slider overlapping text */);
         topvbox.pack_end(&powerhbox, true, true, 0);
 
         App { window, topvbox, hbox1, outputis: outputis, outputimage,
               powerhbox, powerlabel, powerscale,
-              bulbocl: bulbocl }
+            }
     }
 }
 
+fn wire_callbacks(app: Rc<RefCell<App>>, mut state: Rc<RefCell<State>>)
+{
+    let powerscale_adjust = app.borrow().powerscale.get_adjustment();
+    powerscale_adjust.connect_value_changed(move |adj| {
+        state.borrow_mut().power = adj.get_value() as f32;
+        //doredraw();
+    });
+}
+
 fn main() {
+    let mut bulbocl = Bulbocl::new();
+    bulbocl.calc_bulb(256);
+
     if gtk::init().is_err() {
         eprintln!("failed to init GTK app");
         process::exit(1);
     }
+    let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(App::new(&mut bulbocl)));
+    let staterc : Rc<RefCell<State>> = Rc::new(RefCell::new(State { power: 8.0 }));
 
-    App::new().window.show_all();
+    apprc.borrow().window.show_all();
+    wire_callbacks(apprc.clone(), staterc.clone());
 
     gtk::main();
 }
