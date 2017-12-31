@@ -14,13 +14,16 @@ use bulbocl::*;
 
 pub struct App {
     pub window: Window,
-    pub topvbox: Box,
-    pub hbox1: Box,
     pub outputis: ImageSurface,
     pub outputimage: Image,
 
-    pub powerhbox: Box,
-    pub powerlabel: Label,
+    pub rotxbutminus: Button,
+    pub rotxbutplus: Button,
+    pub rotybutminus: Button,
+    pub rotybutplus: Button,
+    pub rotzbutminus: Button,
+    pub rotzbutplus: Button,
+
     pub powerscale: Scale,
 }
 
@@ -49,6 +52,39 @@ impl App {
         let outputimage = Image::new_from_surface(Some(outputis.as_ref()));
         hbox1.pack_start(&outputimage, true, true, 0);
 
+        // Set of controls to the right of the image
+        let topcontvbox  = Box::new(Orientation::Vertical, 2);
+        // Set of rotation controls
+        //  TODO: Replace by some type of click/drag spaceball thing
+        let rotxhbox = Box::new(Orientation::Horizontal, 3);
+        let rotxlabel = Label::new("Rotate X axis:");
+        let rotxbutminus = Button::new_from_icon_name("go-up", IconSize::Button.into());
+        let rotxbutplus = Button::new_from_icon_name("go-down", IconSize::Button.into());
+        rotxhbox.pack_start(&rotxlabel, false, false, 0);
+        rotxhbox.pack_start(&rotxbutminus, false, false, 0);
+        rotxhbox.pack_start(&rotxbutplus, false, false, 0);
+        topcontvbox.pack_start(&rotxhbox, false, false, 0);
+        let rotyhbox = Box::new(Orientation::Horizontal, 3);
+        let rotylabel = Label::new("Rotate Y axis:");
+        let rotybutminus = Button::new_from_icon_name("go-previous", IconSize::Button.into());
+        let rotybutplus = Button::new_from_icon_name("go-next", IconSize::Button.into());
+        rotyhbox.pack_start(&rotylabel, false, false, 0);
+        rotyhbox.pack_start(&rotybutminus, false, false, 0);
+        rotyhbox.pack_start(&rotybutplus, false, false, 0);
+        topcontvbox.pack_start(&rotyhbox, false, false, 0);
+        let rotzhbox = Box::new(Orientation::Horizontal, 3);
+        let rotzlabel = Label::new("Rotate Z axis:");
+        // Todo using named icons seems to be a bad idea, these rotate ones look nothing like the
+        // go's
+        let rotzbutminus = Button::new_from_icon_name("object-rotate-left", IconSize::Button.into());
+        let rotzbutplus = Button::new_from_icon_name("object-rotate-right", IconSize::Button.into());
+        rotzhbox.pack_start(&rotzlabel, false, false, 0);
+        rotzhbox.pack_start(&rotzbutminus, false, false, 0);
+        rotzhbox.pack_start(&rotzbutplus, false, false, 0);
+        topcontvbox.pack_start(&rotzhbox, false, false, 0);
+
+        hbox1.pack_end(&topcontvbox, false, false, 0);
+
         let powerhbox = Box::new(Orientation::Horizontal, 2);
         let powerlabel = Label::new("Power:");
         let powerscale = Scale::new_with_range( gtk::Orientation::Horizontal, 1.0, 10.0, 0.25);
@@ -57,8 +93,10 @@ impl App {
         powerhbox.pack_end(&powerscale, true, true, 10 /* Pad: To stop slider overlapping text */);
         topvbox.pack_end(&powerhbox, true, true, 0);
 
-        App { window, topvbox, hbox1, outputis: outputis, outputimage,
-              powerhbox, powerlabel, powerscale,
+        App { window, outputis: outputis, outputimage, powerscale,
+              rotxbutplus, rotxbutminus,
+              rotybutplus, rotybutminus,
+              rotzbutplus, rotzbutminus,
             }
     }
 
@@ -83,6 +121,10 @@ impl State {
                 vp_mid: na::Vector3::new(0.5, 0.5, -2.0),
                 vp_right: na::Vector3::new(1.0, 0.0, 0.0),
                 vp_down: na::Vector3::new(0.0, 1.0, 0.0)
+                //eye: na::Vector3::new(0.5, -3.0, 0.5),
+                //vp_mid: na::Vector3::new(0.5, -2.0, 0.5),
+                //vp_right: na::Vector3::new(1.0, 0.0, 0.0),
+                //vp_down: na::Vector3::new(0.0, 0.0, 1.0)
         }
     }
 }
@@ -99,13 +141,72 @@ fn do_redraw(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, recalc_fra
     app.outputimage.set_from_surface(Some(app.outputis.as_ref()));
 }
 
+fn do_rotate(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, x: f32, y: f32, z: f32) {
+    let x = x*std::f32::consts::PI / 10.0;
+    let y = y*std::f32::consts::PI / 10.0;
+    let z = z*std::f32::consts::PI / 10.0;
+    println!("do_rotate {} {} {} from eye={} vp mid/r/d= {}/{}/{}", x, y, z, state.eye, state.vp_mid, state.vp_right, state.vp_down);
+    // The centre point of the mandelbulb is 0.5/0.5/0.5 - so translate down to 0, rotate and
+    // translate back (Is there an easier way in nalgebra's Rotation3?)
+    let offset = na::Vector3::new(0.5, 0.5, 0.5);
+    let rot = na::Rotation3::from_euler_angles(x,y,z); // order???
+    // eye and vp_mid are points in space so need the translations
+    state.eye = offset + rot * (state.eye - offset);
+    state.vp_mid = offset + rot * (state.vp_mid - offset);
+    // vp_right/vp_down are relative vectors so dont need the translations
+    state.vp_right = rot * state.vp_right;
+    state.vp_down = rot * state.vp_down;
+    println!("do_rotate rot={} giving: from eye={} vp mid/r/d= {}/{}/{}", rot, state.eye, state.vp_mid, state.vp_right, state.vp_down);
+    do_redraw(app, bulbocl, state, true);
+}
+
 fn wire_callbacks(app: Rc<RefCell<App>>, bulbocl: Rc<RefCell<Bulbocl>>, state: Rc<RefCell<State>>)
 {
-    let powerscale_adjust = app.borrow().powerscale.get_adjustment();
-    powerscale_adjust.connect_value_changed(move |adj| {
-        state.borrow_mut().power = adj.get_value() as f32;
-        do_redraw(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), true);
-    });
+    {
+        let powerscale_adjust = app.borrow().powerscale.get_adjustment();
+        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+
+        powerscale_adjust.connect_value_changed(move |adj| {
+            state.borrow_mut().power = adj.get_value() as f32;
+            do_redraw(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), true);
+        });
+    }
+    {
+        let button = &app.borrow().rotxbutminus;
+        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), -1.0, 0.0, 0.0); });
+    }
+    {
+        let button = &app.borrow().rotxbutplus;
+        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 1.0, 0.0, 0.0); });
+    }
+    {
+        let button = &app.borrow().rotybutminus;
+        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 0.0, -1.0, 0.0); });
+    }
+    {
+        let button = &app.borrow().rotybutplus;
+        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 0.0, 1.0, 0.0); });
+    }
+    {
+        let button = &app.borrow().rotzbutminus;
+        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 0.0, 0.0, -1.0); });
+    }
+    {
+        let button = &app.borrow().rotzbutplus;
+        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 0.0, 0.0, 1.0); });
+    }
 }
 
 fn main() {
