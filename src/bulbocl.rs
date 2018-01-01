@@ -2,6 +2,9 @@
 
 extern crate ocl;
 extern crate nalgebra as na;
+extern crate bincode;
+use std::fs::File;
+use std::io::Write;
 
 const RENDER_CONFIG_SIZE : usize =  15;
 
@@ -121,5 +124,20 @@ impl Bulbocl {
         // Copy the image out
         self.imagebuf.read(result).enq().unwrap();
     }
+
+    pub fn save_voxels(&mut self) {
+        let mut tmpvec = vec![0u8; self.voxelsize*self.voxelsize*self.voxelsize];
+        let mut file = File::create("voxels.dat").unwrap();
+        self.voxelbuf.read(&mut tmpvec).enq().unwrap();
+        file.write_all(tmpvec.as_slice()).unwrap();
+    }
+
+    pub fn save_debug(&mut self) {
+        let mut tmpvec = vec![0.0f32; self.imagewidth*self.imageheight];
+        let mut file = File::create("debug.dat").unwrap();
+        self.imagedebugbuf.read(&mut tmpvec).enq().unwrap();
+        bincode::serialize_into(&mut file, &tmpvec, bincode::Infinite).unwrap();
+    }
+
 }
 

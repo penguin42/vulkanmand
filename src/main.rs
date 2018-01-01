@@ -5,6 +5,7 @@ extern crate cairo;
 extern crate nalgebra as na;
 use gtk::*;
 use cairo::*;
+use std::fs::File;
 use std::process;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -23,6 +24,10 @@ pub struct App {
     pub rotybutplus: Button,
     pub rotzbutminus: Button,
     pub rotzbutplus: Button,
+
+    pub saveimagebut: Button,
+    pub savevoxelsbut: Button,
+    pub savedebugbut: Button,
 
     pub powerscale: Scale,
 }
@@ -83,6 +88,16 @@ impl App {
         rotzhbox.pack_start(&rotzbutplus, false, false, 0);
         topcontvbox.pack_start(&rotzhbox, false, false, 0);
 
+        // Buttons for saving stuff out
+        let savehbox = Box::new(Orientation::Horizontal, 3);
+        let saveimagebut = Button::new_with_label("image");
+        let savevoxelsbut = Button::new_with_label("voxels");
+        let savedebugbut = Button::new_with_label("debug");
+        savehbox.pack_start(&Label::new("Save:"), false, false, 0);
+        savehbox.pack_start(&saveimagebut, false, false, 0);
+        savehbox.pack_start(&savevoxelsbut, false, false, 0);
+        savehbox.pack_start(&savedebugbut, false, false, 0);
+        topcontvbox.pack_end(&savehbox, false, false, 0);
         hbox1.pack_end(&topcontvbox, false, false, 0);
 
         let powerhbox = Box::new(Orientation::Horizontal, 2);
@@ -97,9 +112,14 @@ impl App {
               rotxbutplus, rotxbutminus,
               rotybutplus, rotybutminus,
               rotzbutplus, rotzbutminus,
+              saveimagebut, savevoxelsbut, savedebugbut
             }
     }
 
+    fn save_image(&self) {
+        let mut file = File::create("image.png").unwrap();
+        self.outputis.write_to_png(&mut file).unwrap();
+    }
 }
 
 struct State {
@@ -206,6 +226,24 @@ fn wire_callbacks(app: Rc<RefCell<App>>, bulbocl: Rc<RefCell<Bulbocl>>, state: R
         let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
 
         button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 0.0, 0.0, 1.0); });
+    }
+    {
+        let button = &app.borrow().saveimagebut;
+        let app = app.clone();
+
+        button.connect_clicked(move |_| { app.borrow_mut().save_image(); });
+    }
+    {
+        let button = &app.borrow().savevoxelsbut;
+        let bulbocl = bulbocl.clone();
+
+        button.connect_clicked(move |_| { bulbocl.borrow_mut().save_voxels(); });
+    }
+    {
+        let button = &app.borrow().savedebugbut;
+        let bulbocl = bulbocl.clone();
+
+        button.connect_clicked(move |_| { bulbocl.borrow_mut().save_debug(); });
     }
 }
 
