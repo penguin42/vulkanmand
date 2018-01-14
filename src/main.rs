@@ -52,7 +52,7 @@ impl App {
         topvbox.pack_start(&hbox1, true, true, 0);
 
         // Display the output image - it's a pixbuf in an Image
-        let outputis = ImageSurface::create(Format::Rgb24, 640, 480).unwrap();
+        let outputis = ImageSurface::create(Format::Rgb24, 512, 512).unwrap();
 
         let outputimage = Image::new_from_surface(Some(outputis.as_ref()));
         hbox1.pack_start(&outputimage, true, true, 0);
@@ -156,7 +156,7 @@ fn do_redraw(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, recalc_fra
     app.outputimage.set_from_surface(None);
     {
         let mut id = app.outputis.get_data().unwrap();
-        bulbocl.render_image(&mut id, 640, 480, state.eye, state.vp_mid, state.vp_right, state.vp_down );
+        bulbocl.render_image(&mut id, 512, 512, state.eye, state.vp_mid, state.vp_right, state.vp_down );
     }
     app.outputimage.set_from_surface(Some(app.outputis.as_ref()));
 }
