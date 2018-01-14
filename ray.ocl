@@ -39,7 +39,6 @@ __kernel void ray(__global uchar *image, __global const uchar *voxels, __global 
   float v1x = ((float)ix - ((float)iw)/2.0f)/(((float)iw)/2.0f);
   float v1y = ((float)iy - ((float)ih)/2.0f)/(((float)ih)/2.0f);
 
-  debug[iy*iw + ix] = v1y;
   // Pixel in view plane
   float vx = vmx + v1x*vxx + v1y*vyx;
   float vy = vmy + v1x*vxy + v1y*vyy;
@@ -50,30 +49,25 @@ __kernel void ray(__global uchar *image, __global const uchar *voxels, __global 
   float ry = vy - ey;
   float rz = vz - ez;
 
+  debug[iy*iw + ix] = rz;
   // We probably should use bresenham - but I'll just scale to make
   // sure that none of rx/ry/rz are greater than a pixel
-  if (fabs(rx) > 1.0f) {
-    rx = rx / fabs(rx);
-    ry = ry / fabs(rx);
-    rz = rz / fabs(rx);
-  }
-  if (fabs(ry) > 1.0f) {
-    rx = rx / fabs(ry);
-    ry = ry / fabs(ry);
-    rz = rz / fabs(ry);
-  }
-  if (fabs(rz) > 1.0f) {
-    rx = rx / fabs(rz);
-    ry = ry / fabs(rz);
-    rz = rz / fabs(rz);
-  }
+
+  float raylen = sqrt(rx*rx + ry*ry + rz*rz);
+  rx = rx / raylen;
+  ry = ry / raylen;
+  rz = rz / raylen;
 
   float result = 0.0f;
 
+  bool hitx = false;
+  bool hity = false;
+  bool hitz = false;
+  bool hitedge = false;
   while (result <= 255.4f &&
-         !hitend(vx, rx, (float)vxr) &&
-         !hitend(vy, ry, (float)vyr) &&
-         !hitend(vz, rz, (float)vzr)) {
+         !(hitx=hitend(vx, rx, (float)vxr)) &&
+         !(hity=hitend(vy, ry, (float)vyr)) &&
+         !(hitz=hitend(vz, rz, (float)vzr))) {
     if (vx >= 0.0f && vx < vxr &&
         vy >= 0.0f && vy < vyr &&
         vz >= 0.0f && vz < vzr) {
@@ -83,8 +77,9 @@ __kernel void ray(__global uchar *image, __global const uchar *voxels, __global 
       uint ivz = (int)vz;
 
       uchar value = voxels[ivz*vyr*vxr + ivy*vxr + ivx];
-      if (value > 4) {
-        result += (float)value/32.0;
+      if (value > 79) {
+        hitedge = true;
+        result += (float)value/64.0;
       }
     }
     vx += rx; 
@@ -94,8 +89,8 @@ __kernel void ray(__global uchar *image, __global const uchar *voxels, __global 
 
   if (result > 255.0f) result=255.0f;
   image[4*(iy*iw + ix)] = (int)result;
-  image[1+4*(iy*iw + ix)] = (int)result;
-  image[2+4*(iy*iw + ix)] = (int)result;
+  image[1+4*(iy*iw + ix)] = hitx?0x10:0 + hity?0x20:0 + hitz?0x40:0;
+  image[2+4*(iy*iw + ix)] = hitedge?0x50:0;
   image[3+4*(iy*iw + ix)] = 0;
 }
 
