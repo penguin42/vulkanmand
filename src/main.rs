@@ -137,10 +137,10 @@ struct State {
 impl State {
     fn new() -> State {
         State { power: 8.0,
-                eye: na::Vector3::new(0.5, 0.5, -3.0),
-                vp_mid: na::Vector3::new(0.5, 0.5, -2.0),
-                vp_right: na::Vector3::new(1.0, 0.0, 0.0),
-                vp_down: na::Vector3::new(0.0, 1.0, 0.0)
+                eye: na::Vector3::new(0.5, 0.5, -2.0),
+                vp_mid: na::Vector3::new(0.5, 0.5, -0.75),
+                vp_right: na::Vector3::new(0.5, 0.0, 0.0),
+                vp_down: na::Vector3::new(0.0, 0.5, 0.0)
                 //eye: na::Vector3::new(0.5, -3.0, 0.5),
                 //vp_mid: na::Vector3::new(0.5, -2.0, 0.5),
                 //vp_right: na::Vector3::new(1.0, 0.0, 0.0),

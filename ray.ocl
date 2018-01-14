@@ -88,9 +88,9 @@ __kernel void ray(__global uchar *image, __global const uchar *voxels, __global 
   }
 
   if (result > 255.0f) result=255.0f;
-  image[4*(iy*iw + ix)] = (int)result;
-  image[1+4*(iy*iw + ix)] = hitx?0x10:0 + hity?0x20:0 + hitz?0x40:0;
-  image[2+4*(iy*iw + ix)] = hitedge?0x50:0;
+  image[4*(iy*iw + ix)] = hitedge?0x80:0;
+  image[1+4*(iy*iw + ix)] = hitx?0x2:0 + hity?0x4:0 + hitz?0x8:0;
+  image[2+4*(iy*iw + ix)] = (int)result;
   image[3+4*(iy*iw + ix)] = 0;
 }
 
