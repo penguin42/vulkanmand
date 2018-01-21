@@ -9,6 +9,7 @@ use std::fs::File;
 use std::process;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::Instant;
 
 mod bulbocl;
 use bulbocl::*;
@@ -28,6 +29,9 @@ pub struct App {
     pub saveimagebut: Button,
     pub savevoxelsbut: Button,
     pub savedebugbut: Button,
+
+    pub statsfullval: Label,
+    pub statstraceval: Label,
 
     pub powerscale: Scale,
 }
@@ -98,6 +102,18 @@ impl App {
         savehbox.pack_start(&savevoxelsbut, false, false, 0);
         savehbox.pack_start(&savedebugbut, false, false, 0);
         topcontvbox.pack_end(&savehbox, false, false, 0);
+
+        // Stats
+        let statsfullhbox = Box::new(Orientation::Horizontal, 2);
+        let statsfullval   = Label::new("---.---");
+        let statstracehbox = Box::new(Orientation::Horizontal, 2);
+        let statstraceval   = Label::new("---.---");
+        statsfullhbox.pack_start(&Label::new("Recalc (ms):"), true, true, 0);
+        statsfullhbox.pack_end(&statsfullval, true, true, 0);
+        statstracehbox.pack_start(&Label::new("Rerender (ms)"), true, true, 0);
+        statstracehbox.pack_end(&statstraceval, true, true, 0);
+        topcontvbox.pack_end(&statsfullhbox, false, false, 0);
+        topcontvbox.pack_end(&statstracehbox, false, false, 0);
         hbox1.pack_end(&topcontvbox, false, false, 0);
 
         let powerhbox = Box::new(Orientation::Horizontal, 2);
@@ -112,7 +128,8 @@ impl App {
               rotxbutplus, rotxbutminus,
               rotybutplus, rotybutminus,
               rotzbutplus, rotzbutminus,
-              saveimagebut, savevoxelsbut, savedebugbut
+              saveimagebut, savevoxelsbut, savedebugbut,
+              statsfullval, statstraceval
             }
     }
 
@@ -150,6 +167,8 @@ impl State {
 }
 
 fn do_redraw(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, recalc_fractal: bool) {
+    let start = Instant::now();
+
     if recalc_fractal {
         bulbocl.calc_bulb(256, state.power);
     }
@@ -157,6 +176,16 @@ fn do_redraw(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, recalc_fra
     {
         let mut id = app.outputis.get_data().unwrap();
         bulbocl.render_image(&mut id, 512, 512, state.eye, state.vp_mid, state.vp_right, state.vp_down );
+    }
+
+    let end = Instant::now();
+    let duration = end.duration_since(start);
+    let durationms = duration.as_secs() as f32 / 1000.0 + duration.subsec_nanos() as f32 / 1000000.0;
+    let durationstr = format!("{:.*}", 3, durationms);
+    if recalc_fractal {
+        app.statsfullval.set_text(&durationstr);
+    } else {
+        app.statstraceval.set_text(&durationstr);
     }
     app.outputimage.set_from_surface(Some(app.outputis.as_ref()));
 }
