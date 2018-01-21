@@ -26,6 +26,9 @@ pub struct App {
     pub rotzbutminus: Button,
     pub rotzbutplus: Button,
 
+    pub zoomin: Button,
+    pub zoomout: Button,
+
     pub saveimagebut: Button,
     pub savevoxelsbut: Button,
     pub savedebugbut: Button,
@@ -92,6 +95,14 @@ impl App {
         rotzhbox.pack_start(&rotzbutplus, false, false, 0);
         topcontvbox.pack_start(&rotzhbox, false, false, 0);
 
+        let zoomhbox = Box::new(Orientation::Horizontal, 3);
+        let zoomin = Button::new_from_icon_name("zoom-in", IconSize::Button.into());
+        let zoomout = Button::new_from_icon_name("zoom-out", IconSize::Button.into());
+        zoomhbox.pack_start(&Label::new("Zoom:"), false, false, 0);
+        zoomhbox.pack_start(&zoomin, false, false, 0);
+        zoomhbox.pack_start(&zoomout, false, false, 0);
+        topcontvbox.pack_start(&zoomhbox, false, false, 0);
+
         // Buttons for saving stuff out
         let savehbox = Box::new(Orientation::Horizontal, 3);
         let saveimagebut = Button::new_with_label("image");
@@ -128,6 +139,7 @@ impl App {
               rotxbutplus, rotxbutminus,
               rotybutplus, rotybutminus,
               rotzbutplus, rotzbutminus,
+              zoomin, zoomout,
               saveimagebut, savevoxelsbut, savedebugbut,
               statsfullval, statstraceval
             }
@@ -209,6 +221,12 @@ fn do_rotate(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, x: f32, y:
     do_redraw(app, bulbocl, state, false);
 }
 
+fn do_zoom(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, scale: f32) {
+    state.vp_right *= scale;
+    state.vp_down *= scale;
+    do_redraw(app, bulbocl, state, false);
+}
+
 fn wire_callbacks(app: Rc<RefCell<App>>, bulbocl: Rc<RefCell<Bulbocl>>, state: Rc<RefCell<State>>)
 {
     {
@@ -255,6 +273,18 @@ fn wire_callbacks(app: Rc<RefCell<App>>, bulbocl: Rc<RefCell<Bulbocl>>, state: R
         let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
 
         button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 0.0, 0.0, 1.0); });
+    }
+    {
+        let button = &app.borrow().zoomin;
+        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+
+        button.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 1.0/1.2); });
+    }
+    {
+        let button = &app.borrow().zoomout;
+        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+
+        button.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 1.2); });
     }
     {
         let button = &app.borrow().saveimagebut;
