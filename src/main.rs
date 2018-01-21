@@ -177,7 +177,7 @@ fn do_rotate(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, x: f32, y:
     state.vp_right = rot * state.vp_right;
     state.vp_down = rot * state.vp_down;
     println!("do_rotate rot={} giving: from eye={} vp mid/r/d= {}/{}/{}", rot, state.eye, state.vp_mid, state.vp_right, state.vp_down);
-    do_redraw(app, bulbocl, state, true);
+    do_redraw(app, bulbocl, state, false);
 }
 
 fn wire_callbacks(app: Rc<RefCell<App>>, bulbocl: Rc<RefCell<Bulbocl>>, state: Rc<RefCell<State>>)
