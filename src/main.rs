@@ -160,7 +160,9 @@ struct State {
     // The viewplane is as big as the image, the point the eye looks towards
     // is calculated by adding fractions of the right and down vectors
     vp_right: na::Vector3<f32>,
-    vp_down: na::Vector3<f32>
+    vp_down: na::Vector3<f32>,
+
+    light: na::Vector3<f32>
 }
 
 impl State {
@@ -169,7 +171,8 @@ impl State {
                 eye: na::Vector3::new(0.5, 0.5, -2.0),
                 vp_mid: na::Vector3::new(0.5, 0.5, -0.75),
                 vp_right: na::Vector3::new(0.5, 0.0, 0.0),
-                vp_down: na::Vector3::new(0.0, 0.5, 0.0)
+                vp_down: na::Vector3::new(0.0, 0.5, 0.0),
+                light: na::Vector3::new(0.3, -0.5, -0.5)
                 //eye: na::Vector3::new(0.5, -3.0, 0.5),
                 //vp_mid: na::Vector3::new(0.5, -2.0, 0.5),
                 //vp_right: na::Vector3::new(1.0, 0.0, 0.0),
@@ -187,7 +190,7 @@ fn do_redraw(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, recalc_fra
     app.outputimage.set_from_surface(None);
     {
         let mut id = app.outputis.get_data().unwrap();
-        bulbocl.render_image(&mut id, 512, 512, state.eye, state.vp_mid, state.vp_right, state.vp_down );
+        bulbocl.render_image(&mut id, 512, 512, state.eye, state.vp_mid, state.vp_right, state.vp_down, state.light );
     }
 
     let end = Instant::now();
@@ -214,6 +217,7 @@ fn do_rotate(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, x: f32, y:
     // eye and vp_mid are points in space so need the translations
     state.eye = offset + rot * (state.eye - offset);
     state.vp_mid = offset + rot * (state.vp_mid - offset);
+    state.light = offset + rot * (state.light - offset);
     // vp_right/vp_down are relative vectors so dont need the translations
     state.vp_right = rot * state.vp_right;
     state.vp_down = rot * state.vp_down;

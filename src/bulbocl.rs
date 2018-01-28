@@ -6,7 +6,7 @@ extern crate bincode;
 use std::fs::File;
 use std::io::Write;
 
-const RENDER_CONFIG_SIZE : usize =  15;
+const RENDER_CONFIG_SIZE : usize =  18;
 
 pub struct Bulbocl {
     context: ocl::Context,
@@ -82,6 +82,7 @@ impl Bulbocl {
                         vp_mid: na::Vector3<f32>,
                         vp_right: na::Vector3<f32>,
                         vp_down: na::Vector3<f32>,
+                        light: na::Vector3<f32>
                         ) {
         if self.imagewidth != width || self.imageheight != height {
             // Need to resize the buffer
@@ -110,6 +111,9 @@ impl Bulbocl {
         config[12] = self.voxelsize as f32;          /* Voxel size x */
         config[13] = self.voxelsize as f32;          /* Voxel size y */
         config[14] = self.voxelsize as f32;          /* Voxel size z */
+        config[15] = light[0] * self.voxelsize as f32; /* Light x */
+        config[16] = light[1] * self.voxelsize as f32; /* Light y */
+        config[17] = light[2] * self.voxelsize as f32; /* Light z */
         self.imageconfigbuf.write(&config).enq().unwrap();
 
         self.renderkern.set_arg_buf_named("voxels", Some(&self.voxelbuf)).unwrap();
