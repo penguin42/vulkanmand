@@ -9,7 +9,6 @@ use std::io::Write;
 const RENDER_CONFIG_SIZE : usize =  18;
 
 pub struct Bulbocl {
-    context: ocl::Context,
     queue: ocl::Queue,
     renderkern: ocl::Kernel,
     mandkern: ocl::Kernel,
@@ -53,10 +52,8 @@ impl Bulbocl {
                              arg_buf_named("debug", None::<ocl::Buffer<f32>>).
                              queue(queue.clone());
 
-        Bulbocl { context: context, queue: queue, mandkern: mandkern, renderkern: renderkern,
-                  imagewidth: imagewidth, imageheight: imageheight,
-                  imagebuf: imagebuf, imageconfigbuf: imageconfigbuf, imagedebugbuf: imagedebugbuf,
-                  voxelsize: voxelsize, voxelbuf: voxelbuf }
+        Bulbocl { queue, mandkern, renderkern, imagewidth, imageheight,
+                  imagebuf, imageconfigbuf, imagedebugbuf, voxelsize, voxelbuf }
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {
