@@ -185,8 +185,9 @@ impl App {
     fn wire_callbacks(self)
     {
         let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(self));
+        let appb = apprc.borrow();
         {
-            let powerscale_adjust = apprc.borrow().powerscale.get_adjustment();
+            let powerscale_adjust = appb.powerscale.get_adjustment();
             let app = apprc.clone();
 
             powerscale_adjust.connect_value_changed(move |adj| {
@@ -195,70 +196,59 @@ impl App {
             });
         }
         {
-            let button = &apprc.borrow().rotxbutminus;
             let app = apprc.clone();
 
-            button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), -1.0, 0.0, 0.0); });
+            appb.rotxbutminus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), -1.0, 0.0, 0.0); });
         }
         {
-            let button = &apprc.borrow().rotxbutplus;
             let app = apprc.clone();
 
-            button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 1.0, 0.0, 0.0); });
+            appb.rotxbutplus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 1.0, 0.0, 0.0); });
         }
         {
-            let button = &apprc.borrow().rotybutminus;
             let app = apprc.clone();
 
-            button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, -1.0, 0.0); });
+            appb.rotybutminus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, -1.0, 0.0); });
         }
         {
-            let button = &apprc.borrow().rotybutplus;
             let app = apprc.clone();
 
-            button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 1.0, 0.0); });
+            appb.rotybutplus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 1.0, 0.0); });
         }
         {
-            let button = &apprc.borrow().rotzbutminus;
             let app = apprc.clone();
 
-            button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 0.0, -1.0); });
+            appb.rotzbutminus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 0.0, -1.0); });
         }
         {
-            let button = &apprc.borrow().rotzbutplus;
             let app = apprc.clone();
 
-            button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 0.0, 1.0); });
+            appb.rotzbutplus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 0.0, 1.0); });
         }
         {
-            let button = &apprc.borrow().zoomin;
             let app = apprc.clone();
 
-            button.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), 1.0/1.2); });
+            appb.zoomin.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), 1.0/1.2); });
         }
         {
-            let button = &apprc.borrow().zoomout;
             let app = apprc.clone();
 
-            button.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), 1.2); });
+            appb.zoomout.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), 1.2); });
         }
         {
-            let button = &apprc.borrow().saveimagebut;
             let app = apprc.clone();
 
-            button.connect_clicked(move |_| { app.borrow_mut().save_image(); });
+            appb.saveimagebut.connect_clicked(move |_| { app.borrow_mut().save_image(); });
         }
         {
-            let button = &apprc.borrow().savevoxelsbut;
             let app = apprc.clone();
 
-            button.connect_clicked(move |_| { app.borrow_mut().bulbocl.save_voxels(); });
+            appb.savevoxelsbut.connect_clicked(move |_| { app.borrow_mut().bulbocl.save_voxels(); });
         }
         {
-            let button = &apprc.borrow().savedebugbut;
             let app = apprc.clone();
 
-            button.connect_clicked(move |_| { app.borrow_mut().bulbocl.save_debug(); });
+            appb.savedebugbut.connect_clicked(move |_| { app.borrow_mut().bulbocl.save_debug(); });
         }
     }
 
