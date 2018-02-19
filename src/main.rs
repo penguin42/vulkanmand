@@ -168,14 +168,18 @@ impl App {
         powerhbox.pack_end(&powerscale, true, true, 10 /* Pad: To stop slider overlapping text */);
         topvbox.pack_end(&powerhbox, true, true, 0);
 
-        App { window, outputis: outputis, outputimage, powerscale,
+        let mut a = App { window, outputis: outputis, outputimage, powerscale,
               rotxbutplus, rotxbutminus,
               rotybutplus, rotybutminus,
               rotzbutplus, rotzbutminus,
               zoomin, zoomout,
               saveimagebut, savevoxelsbut, savedebugbut,
               statsfullval, statstraceval, bulbocl, state
-            }
+            };
+
+        do_redraw(&mut a, true);
+        a.window.show_all();
+        a
     }
 
     fn save_image(&self) {
@@ -319,9 +323,7 @@ fn main() {
     }
     let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(App::new(Bulbocl::new(), State::new())));
 
-    do_redraw(&mut apprc.borrow_mut(), true);
-    apprc.borrow().window.show_all();
-    wire_callbacks(apprc.clone());
+    wire_callbacks(apprc);
 
     gtk::main();
 }
