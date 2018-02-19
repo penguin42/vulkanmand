@@ -14,6 +14,36 @@ use std::time::Instant;
 mod bulbocl;
 use bulbocl::*;
 
+pub struct State {
+    power: f32,
+    // These vectors are in voxel space/voxelsize - i.e. 0..1 so 0.5,0.5 is over the middle
+    eye: na::Vector3<f32>,
+    // The eye looks towards the centre of the viewplane
+    vp_mid: na::Vector3<f32>,
+    // The viewplane is as big as the image, the point the eye looks towards
+    // is calculated by adding fractions of the right and down vectors
+    vp_right: na::Vector3<f32>,
+    vp_down: na::Vector3<f32>,
+
+    light: na::Vector3<f32>
+}
+
+impl State {
+    fn new() -> State {
+        State { power: 8.0,
+                eye: na::Vector3::new(0.5, 0.5, -2.0),
+                vp_mid: na::Vector3::new(0.5, 0.5, -0.75),
+                vp_right: na::Vector3::new(0.5, 0.0, 0.0),
+                vp_down: na::Vector3::new(0.0, 0.5, 0.0),
+                light: na::Vector3::new(0.3, -0.5, -0.5)
+                //eye: na::Vector3::new(0.5, -3.0, 0.5),
+                //vp_mid: na::Vector3::new(0.5, -2.0, 0.5),
+                //vp_right: na::Vector3::new(1.0, 0.0, 0.0),
+                //vp_down: na::Vector3::new(0.0, 0.0, 1.0)
+        }
+    }
+}
+
 pub struct App {
     pub window: Window,
     pub outputis: ImageSurface,
@@ -37,10 +67,12 @@ pub struct App {
     pub statstraceval: Label,
 
     pub powerscale: Scale,
+
+    pub state: State,
 }
 
 impl App {
-    fn new() -> App {
+    fn new(state: State) -> App {
         let window = Window::new(WindowType::Toplevel);
         window.set_title("Mandelbulb");
         window.set_wmclass("app-name", "Mandelbulb");
@@ -141,7 +173,7 @@ impl App {
               rotzbutplus, rotzbutminus,
               zoomin, zoomout,
               saveimagebut, savevoxelsbut, savedebugbut,
-              statsfullval, statstraceval
+              statsfullval, statstraceval, state
             }
     }
 
@@ -151,46 +183,16 @@ impl App {
     }
 }
 
-struct State {
-    power: f32,
-    // These vectors are in voxel space/voxelsize - i.e. 0..1 so 0.5,0.5 is over the middle
-    eye: na::Vector3<f32>,
-    // The eye looks towards the centre of the viewplane
-    vp_mid: na::Vector3<f32>,
-    // The viewplane is as big as the image, the point the eye looks towards
-    // is calculated by adding fractions of the right and down vectors
-    vp_right: na::Vector3<f32>,
-    vp_down: na::Vector3<f32>,
-
-    light: na::Vector3<f32>
-}
-
-impl State {
-    fn new() -> State {
-        State { power: 8.0,
-                eye: na::Vector3::new(0.5, 0.5, -2.0),
-                vp_mid: na::Vector3::new(0.5, 0.5, -0.75),
-                vp_right: na::Vector3::new(0.5, 0.0, 0.0),
-                vp_down: na::Vector3::new(0.0, 0.5, 0.0),
-                light: na::Vector3::new(0.3, -0.5, -0.5)
-                //eye: na::Vector3::new(0.5, -3.0, 0.5),
-                //vp_mid: na::Vector3::new(0.5, -2.0, 0.5),
-                //vp_right: na::Vector3::new(1.0, 0.0, 0.0),
-                //vp_down: na::Vector3::new(0.0, 0.0, 1.0)
-        }
-    }
-}
-
-fn do_redraw(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, recalc_fractal: bool) {
+fn do_redraw(app: &mut App, bulbocl: &mut Bulbocl, recalc_fractal: bool) {
     let start = Instant::now();
 
     if recalc_fractal {
-        bulbocl.calc_bulb(256, state.power);
+        bulbocl.calc_bulb(256, app.state.power);
     }
     app.outputimage.set_from_surface(None);
     {
         let mut id = app.outputis.get_data().unwrap();
-        bulbocl.render_image(&mut id, 512, 512, state.eye, state.vp_mid, state.vp_right, state.vp_down, state.light );
+        bulbocl.render_image(&mut id, 512, 512, app.state.eye, app.state.vp_mid, app.state.vp_right, app.state.vp_down, app.state.light );
     }
 
     let end = Instant::now();
@@ -205,90 +207,88 @@ fn do_redraw(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, recalc_fra
     app.outputimage.set_from_surface(Some(app.outputis.as_ref()));
 }
 
-fn do_rotate(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, x: f32, y: f32, z: f32) {
+fn do_rotate(app: &mut App, bulbocl: &mut Bulbocl, x: f32, y: f32, z: f32) {
     let x = x*std::f32::consts::PI / 10.0;
     let y = y*std::f32::consts::PI / 10.0;
     let z = z*std::f32::consts::PI / 10.0;
-    println!("do_rotate {} {} {} from eye={} vp mid/r/d= {}/{}/{}", x, y, z, state.eye, state.vp_mid, state.vp_right, state.vp_down);
     // The centre point of the mandelbulb is 0.5/0.5/0.5 - so translate down to 0, rotate and
     // translate back (Is there an easier way in nalgebra's Rotation3?)
     let offset = na::Vector3::new(0.5, 0.5, 0.5);
     let rot = na::Rotation3::from_euler_angles(x,y,z); // order???
     // eye and vp_mid are points in space so need the translations
-    state.eye = offset + rot * (state.eye - offset);
-    state.vp_mid = offset + rot * (state.vp_mid - offset);
-    state.light = offset + rot * (state.light - offset);
+    app.state.eye = offset + rot * (app.state.eye - offset);
+    app.state.vp_mid = offset + rot * (app.state.vp_mid - offset);
+    app.state.light = offset + rot * (app.state.light - offset);
     // vp_right/vp_down are relative vectors so dont need the translations
-    state.vp_right = rot * state.vp_right;
-    state.vp_down = rot * state.vp_down;
-    println!("do_rotate rot={} giving: from eye={} vp mid/r/d= {}/{}/{}", rot, state.eye, state.vp_mid, state.vp_right, state.vp_down);
-    do_redraw(app, bulbocl, state, false);
+    app.state.vp_right = rot * app.state.vp_right;
+    app.state.vp_down = rot * app.state.vp_down;
+    do_redraw(app, bulbocl, false);
 }
 
-fn do_zoom(app: &mut App, bulbocl: &mut Bulbocl, state: &mut State, scale: f32) {
-    state.vp_right *= scale;
-    state.vp_down *= scale;
-    do_redraw(app, bulbocl, state, false);
+fn do_zoom(app: &mut App, bulbocl: &mut Bulbocl, scale: f32) {
+    app.state.vp_right *= scale;
+    app.state.vp_down *= scale;
+    do_redraw(app, bulbocl, false);
 }
 
-fn wire_callbacks(app: Rc<RefCell<App>>, bulbocl: Rc<RefCell<Bulbocl>>, state: Rc<RefCell<State>>)
+fn wire_callbacks(app: Rc<RefCell<App>>, bulbocl: Rc<RefCell<Bulbocl>>)
 {
     {
         let powerscale_adjust = app.borrow().powerscale.get_adjustment();
-        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+        let app = app.clone(); let bulbocl = bulbocl.clone();
 
         powerscale_adjust.connect_value_changed(move |adj| {
-            state.borrow_mut().power = adj.get_value() as f32;
-            do_redraw(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), true);
+            app.borrow_mut().state.power = adj.get_value() as f32;
+            do_redraw(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), true);
         });
     }
     {
         let button = &app.borrow().rotxbutminus;
-        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+        let app = app.clone(); let bulbocl = bulbocl.clone();
 
-        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), -1.0, 0.0, 0.0); });
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), -1.0, 0.0, 0.0); });
     }
     {
         let button = &app.borrow().rotxbutplus;
-        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+        let app = app.clone(); let bulbocl = bulbocl.clone();
 
-        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 1.0, 0.0, 0.0); });
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 1.0, 0.0, 0.0); });
     }
     {
         let button = &app.borrow().rotybutminus;
-        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+        let app = app.clone(); let bulbocl = bulbocl.clone();
 
-        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 0.0, -1.0, 0.0); });
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 0.0, -1.0, 0.0); });
     }
     {
         let button = &app.borrow().rotybutplus;
-        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+        let app = app.clone(); let bulbocl = bulbocl.clone();
 
-        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 0.0, 1.0, 0.0); });
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 0.0, 1.0, 0.0); });
     }
     {
         let button = &app.borrow().rotzbutminus;
-        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+        let app = app.clone(); let bulbocl = bulbocl.clone();
 
-        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 0.0, 0.0, -1.0); });
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 0.0, 0.0, -1.0); });
     }
     {
         let button = &app.borrow().rotzbutplus;
-        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+        let app = app.clone(); let bulbocl = bulbocl.clone();
 
-        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 0.0, 0.0, 1.0); });
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 0.0, 0.0, 1.0); });
     }
     {
         let button = &app.borrow().zoomin;
-        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+        let app = app.clone(); let bulbocl = bulbocl.clone();
 
-        button.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 1.0/1.2); });
+        button.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 1.0/1.2); });
     }
     {
         let button = &app.borrow().zoomout;
-        let app = app.clone(); let bulbocl = bulbocl.clone(); let state = state.clone();
+        let app = app.clone(); let bulbocl = bulbocl.clone();
 
-        button.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), &mut state.borrow_mut(), 1.2); });
+        button.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 1.2); });
     }
     {
         let button = &app.borrow().saveimagebut;
@@ -317,13 +317,12 @@ fn main() {
         eprintln!("failed to init GTK app");
         process::exit(1);
     }
-    let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(App::new()));
-    let staterc : Rc<RefCell<State>> = Rc::new(RefCell::new(State::new()));
+    let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(App::new(State::new())));
     let bulboclrc : Rc<RefCell<Bulbocl>> = Rc::new(RefCell::new(bulbocl));
 
-    do_redraw(&mut apprc.borrow_mut(), &mut bulboclrc.borrow_mut(), &mut staterc.borrow_mut(), true);
+    do_redraw(&mut apprc.borrow_mut(), &mut bulboclrc.borrow_mut(), true);
     apprc.borrow().window.show_all();
-    wire_callbacks(apprc.clone(), bulboclrc.clone(), staterc.clone());
+    wire_callbacks(apprc.clone(), bulboclrc.clone());
 
     gtk::main();
 }
