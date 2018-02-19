@@ -68,11 +68,12 @@ pub struct App {
 
     pub powerscale: Scale,
 
+    pub bulbocl: Bulbocl,
     pub state: State,
 }
 
 impl App {
-    fn new(state: State) -> App {
+    fn new(bulbocl: Bulbocl, state: State) -> App {
         let window = Window::new(WindowType::Toplevel);
         window.set_title("Mandelbulb");
         window.set_wmclass("app-name", "Mandelbulb");
@@ -173,7 +174,7 @@ impl App {
               rotzbutplus, rotzbutminus,
               zoomin, zoomout,
               saveimagebut, savevoxelsbut, savedebugbut,
-              statsfullval, statstraceval, state
+              statsfullval, statstraceval, bulbocl, state
             }
     }
 
@@ -183,16 +184,16 @@ impl App {
     }
 }
 
-fn do_redraw(app: &mut App, bulbocl: &mut Bulbocl, recalc_fractal: bool) {
+fn do_redraw(app: &mut App, recalc_fractal: bool) {
     let start = Instant::now();
 
     if recalc_fractal {
-        bulbocl.calc_bulb(256, app.state.power);
+        app.bulbocl.calc_bulb(256, app.state.power);
     }
     app.outputimage.set_from_surface(None);
     {
         let mut id = app.outputis.get_data().unwrap();
-        bulbocl.render_image(&mut id, 512, 512, app.state.eye, app.state.vp_mid, app.state.vp_right, app.state.vp_down, app.state.light );
+        app.bulbocl.render_image(&mut id, 512, 512, app.state.eye, app.state.vp_mid, app.state.vp_right, app.state.vp_down, app.state.light );
     }
 
     let end = Instant::now();
@@ -207,7 +208,7 @@ fn do_redraw(app: &mut App, bulbocl: &mut Bulbocl, recalc_fractal: bool) {
     app.outputimage.set_from_surface(Some(app.outputis.as_ref()));
 }
 
-fn do_rotate(app: &mut App, bulbocl: &mut Bulbocl, x: f32, y: f32, z: f32) {
+fn do_rotate(app: &mut App, x: f32, y: f32, z: f32) {
     let x = x*std::f32::consts::PI / 10.0;
     let y = y*std::f32::consts::PI / 10.0;
     let z = z*std::f32::consts::PI / 10.0;
@@ -222,73 +223,73 @@ fn do_rotate(app: &mut App, bulbocl: &mut Bulbocl, x: f32, y: f32, z: f32) {
     // vp_right/vp_down are relative vectors so dont need the translations
     app.state.vp_right = rot * app.state.vp_right;
     app.state.vp_down = rot * app.state.vp_down;
-    do_redraw(app, bulbocl, false);
+    do_redraw(app, false);
 }
 
-fn do_zoom(app: &mut App, bulbocl: &mut Bulbocl, scale: f32) {
+fn do_zoom(app: &mut App, scale: f32) {
     app.state.vp_right *= scale;
     app.state.vp_down *= scale;
-    do_redraw(app, bulbocl, false);
+    do_redraw(app, false);
 }
 
-fn wire_callbacks(app: Rc<RefCell<App>>, bulbocl: Rc<RefCell<Bulbocl>>)
+fn wire_callbacks(app: Rc<RefCell<App>>)
 {
     {
         let powerscale_adjust = app.borrow().powerscale.get_adjustment();
-        let app = app.clone(); let bulbocl = bulbocl.clone();
+        let app = app.clone();
 
         powerscale_adjust.connect_value_changed(move |adj| {
             app.borrow_mut().state.power = adj.get_value() as f32;
-            do_redraw(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), true);
+            do_redraw(&mut app.borrow_mut(), true);
         });
     }
     {
         let button = &app.borrow().rotxbutminus;
-        let app = app.clone(); let bulbocl = bulbocl.clone();
+        let app = app.clone();
 
-        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), -1.0, 0.0, 0.0); });
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), -1.0, 0.0, 0.0); });
     }
     {
         let button = &app.borrow().rotxbutplus;
-        let app = app.clone(); let bulbocl = bulbocl.clone();
+        let app = app.clone();
 
-        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 1.0, 0.0, 0.0); });
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 1.0, 0.0, 0.0); });
     }
     {
         let button = &app.borrow().rotybutminus;
-        let app = app.clone(); let bulbocl = bulbocl.clone();
+        let app = app.clone();
 
-        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 0.0, -1.0, 0.0); });
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, -1.0, 0.0); });
     }
     {
         let button = &app.borrow().rotybutplus;
-        let app = app.clone(); let bulbocl = bulbocl.clone();
+        let app = app.clone();
 
-        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 0.0, 1.0, 0.0); });
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 1.0, 0.0); });
     }
     {
         let button = &app.borrow().rotzbutminus;
-        let app = app.clone(); let bulbocl = bulbocl.clone();
+        let app = app.clone();
 
-        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 0.0, 0.0, -1.0); });
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 0.0, -1.0); });
     }
     {
         let button = &app.borrow().rotzbutplus;
-        let app = app.clone(); let bulbocl = bulbocl.clone();
+        let app = app.clone();
 
-        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 0.0, 0.0, 1.0); });
+        button.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 0.0, 1.0); });
     }
     {
         let button = &app.borrow().zoomin;
-        let app = app.clone(); let bulbocl = bulbocl.clone();
+        let app = app.clone();
 
-        button.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 1.0/1.2); });
+        button.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), 1.0/1.2); });
     }
     {
         let button = &app.borrow().zoomout;
-        let app = app.clone(); let bulbocl = bulbocl.clone();
+        let app = app.clone();
 
-        button.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), &mut bulbocl.borrow_mut(), 1.2); });
+        button.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), 1.2); });
     }
     {
         let button = &app.borrow().saveimagebut;
@@ -298,31 +299,29 @@ fn wire_callbacks(app: Rc<RefCell<App>>, bulbocl: Rc<RefCell<Bulbocl>>)
     }
     {
         let button = &app.borrow().savevoxelsbut;
-        let bulbocl = bulbocl.clone();
+        let app = app.clone();
 
-        button.connect_clicked(move |_| { bulbocl.borrow_mut().save_voxels(); });
+        button.connect_clicked(move |_| { app.borrow_mut().bulbocl.save_voxels(); });
     }
     {
         let button = &app.borrow().savedebugbut;
-        let bulbocl = bulbocl.clone();
+        let app = app.clone();
 
-        button.connect_clicked(move |_| { bulbocl.borrow_mut().save_debug(); });
+        button.connect_clicked(move |_| { app.borrow_mut().bulbocl.save_debug(); });
     }
 }
 
 fn main() {
-    let bulbocl = Bulbocl::new();
 
     if gtk::init().is_err() {
         eprintln!("failed to init GTK app");
         process::exit(1);
     }
-    let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(App::new(State::new())));
-    let bulboclrc : Rc<RefCell<Bulbocl>> = Rc::new(RefCell::new(bulbocl));
+    let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(App::new(Bulbocl::new(), State::new())));
 
-    do_redraw(&mut apprc.borrow_mut(), &mut bulboclrc.borrow_mut(), true);
+    do_redraw(&mut apprc.borrow_mut(), true);
     apprc.borrow().window.show_all();
-    wire_callbacks(apprc.clone(), bulboclrc.clone());
+    wire_callbacks(apprc.clone());
 
     gtk::main();
 }
