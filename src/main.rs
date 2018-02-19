@@ -164,22 +164,21 @@ impl App {
         powerhbox.pack_end(&powerscale, true, true, 10 /* Pad: To stop slider overlapping text */);
         topvbox.pack_end(&powerhbox, true, true, 0);
 
-        let mut a = App { window, outputis: outputis, outputimage, powerscale,
+        App { window, outputis: outputis, outputimage, powerscale,
               rotxbutplus, rotxbutminus,
               rotybutplus, rotybutminus,
               rotzbutplus, rotzbutminus,
               zoomin, zoomout,
               saveimagebut, savevoxelsbut, savedebugbut,
               statsfullval, statstraceval, bulbocl, state
-            };
-
-        do_redraw(&mut a, true);
-        a.window.show_all();
-        a
+            }
     }
 
-    fn wire_callbacks(self)
+    fn init(mut self)
     {
+        do_redraw(&mut self, true);
+        self.window.show_all();
+
         let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(self));
         let appb = apprc.borrow();
         {
@@ -307,7 +306,7 @@ fn main() {
         eprintln!("failed to init GTK app");
         process::exit(1);
     }
-    App::new(Bulbocl::new(), State::new()).wire_callbacks();
+    App::new(Bulbocl::new(), State::new()).init();
 
     gtk::main();
 }
