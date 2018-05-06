@@ -139,7 +139,7 @@ impl Bulbocl {
         let mut tmpvec = vec![0.0f32; self.imagewidth*self.imageheight];
         let mut file = File::create("debug.dat").unwrap();
         self.imagedebugbuf.read(&mut tmpvec).enq().unwrap();
-        bincode::serialize_into(&mut file, &tmpvec, bincode::Infinite).unwrap();
+        bincode::serialize_into(&mut file, &tmpvec).unwrap();
     }
 
 }
