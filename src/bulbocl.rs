@@ -26,18 +26,18 @@ pub struct Bulbocl {
 impl Bulbocl {
     pub fn new() -> Bulbocl {
         let platform = ocl::Platform::default();
-        let device = ocl::Device::first(platform);   /* TODO: Should be smarter with selecting GPU */
+        let device = ocl::Device::first(platform).unwrap();   /* TODO: Should be smarter with selecting GPU */
         let context = ocl::Context::builder().platform(platform).devices(device.clone()).build().unwrap();
         let queue = ocl::Queue::new(&context, device, None).unwrap();
 
         let voxelsize = 4; // Dummy initial dimension
-        let voxelbuf = ocl::Buffer::<u8>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims((4,4,4)).build().unwrap();
+        let voxelbuf = ocl::Buffer::<u8>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).len((4,4,4)).build().unwrap();
 
         let imagewidth = 4; // Dummy initial dimension
         let imageheight = 4; // Dummy initial dimension
-        let imagebuf = ocl::Buffer::<u8>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims((4*4,4)).build().unwrap();
-        let imageconfigbuf = ocl::Buffer::<f32>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims(RENDER_CONFIG_SIZE).build().unwrap();
-        let imagedebugbuf = ocl::Buffer::<f32>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims((4,4)).build().unwrap();
+        let imagebuf = ocl::Buffer::<u8>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).len((4*4,4)).build().unwrap();
+        let imageconfigbuf = ocl::Buffer::<f32>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).len(RENDER_CONFIG_SIZE).build().unwrap();
+        let imagedebugbuf = ocl::Buffer::<f32>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).len((4,4)).build().unwrap();
 
         let mandprog = ocl::Program::builder().devices(device).src_file("mandel.ocl").build(&context).unwrap();
         let mandkern = ocl::Kernel::new("mandel", &mandprog).unwrap().
@@ -63,7 +63,7 @@ impl Bulbocl {
             self.mandkern.set_arg_buf_named("voxels", None::<ocl::Buffer<u8>>).unwrap();
             self.renderkern.set_arg_buf_named("voxels", None::<ocl::Buffer<u8>>).unwrap();
             self.voxelsize = size;
-            self.voxelbuf = ocl::Buffer::<u8>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_READ_WRITE).dims((size,size,size)).build().unwrap();
+            self.voxelbuf = ocl::Buffer::<u8>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_READ_WRITE).len((size,size,size)).build().unwrap();
         }
         self.mandkern.set_arg_buf_named("voxels", Some(&self.voxelbuf)).unwrap();
         self.mandkern.set_arg_scl_named("power", power).unwrap();
@@ -88,8 +88,8 @@ impl Bulbocl {
             self.renderkern.set_arg_buf_named("debug", None::<ocl::Buffer<f32>>).unwrap();
             self.imagewidth = width;
             self.imageheight = height;
-            self.imagebuf = ocl::Buffer::<u8>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_WRITE_ONLY).dims((4*width, height)).build().unwrap();
-            self.imagedebugbuf = ocl::Buffer::<f32>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_WRITE_ONLY).dims((width, height)).build().unwrap();
+            self.imagebuf = ocl::Buffer::<u8>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_WRITE_ONLY).len((4*width, height)).build().unwrap();
+            self.imagedebugbuf = ocl::Buffer::<f32>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_WRITE_ONLY).len((width, height)).build().unwrap();
         }
         // Set data in config buffer
         let mut config = vec![0.0f32; RENDER_CONFIG_SIZE];
