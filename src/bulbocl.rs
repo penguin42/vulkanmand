@@ -40,17 +40,19 @@ impl Bulbocl {
         let imagedebugbuf = ocl::Buffer::<f32>::builder().queue(queue.clone()).flags(ocl::flags::MEM_READ_WRITE).len((4,4)).build().unwrap();
 
         let mandprog = ocl::Program::builder().devices(device).src_file("mandel.ocl").build(&context).unwrap();
-        let mandkern = ocl::Kernel::new("mandel", &mandprog).unwrap().
-                             arg_buf_named("voxels", None::<ocl::Buffer<u8>>).
-                             arg_scl_named("power", Some(8.0 as f32)).
-                             queue(queue.clone());
+        let mandkern = ocl::Kernel::builder().program(&mandprog).name("mandel").
+                             queue(queue.clone()).
+                             arg_named("voxels", None::<&ocl::Buffer<u8>>).
+                             arg_named("power", &(8.0 as f32)).
+                             build().unwrap();
         let renderprog = ocl::Program::builder().devices(device).src_file("ray.ocl").build(&context).unwrap();
-        let renderkern = ocl::Kernel::new("ray", &renderprog).unwrap().
-                             arg_buf_named("image", None::<ocl::Buffer<u8>>).
-                             arg_buf_named("voxels", None::<ocl::Buffer<u8>>).
-                             arg_buf_named("config", None::<ocl::Buffer<f32>>).
-                             arg_buf_named("debug", None::<ocl::Buffer<f32>>).
-                             queue(queue.clone());
+        let renderkern = ocl::Kernel::builder().program(&renderprog).name("ray").
+                             queue(queue.clone()).
+                             arg_named("image", None::<&ocl::Buffer<u8>>).
+                             arg_named("voxels", None::<&ocl::Buffer<u8>>).
+                             arg_named("config", None::<&ocl::Buffer<f32>>).
+                             arg_named("debug", None::<&ocl::Buffer<f32>>).
+                             build().unwrap();
 
         Bulbocl { queue, mandkern, renderkern, imagewidth, imageheight,
                   imagebuf, imageconfigbuf, imagedebugbuf, voxelsize, voxelbuf }
@@ -60,16 +62,16 @@ impl Bulbocl {
         if self.voxelsize != size {
             // Need to resize the buffer
             // TODO: wait for the queue to empty
-            self.mandkern.set_arg_buf_named("voxels", None::<ocl::Buffer<u8>>).unwrap();
-            self.renderkern.set_arg_buf_named("voxels", None::<ocl::Buffer<u8>>).unwrap();
+            self.mandkern.set_arg("voxels", None::<&ocl::Buffer<u8>>).unwrap();
+            self.renderkern.set_arg("voxels", None::<&ocl::Buffer<u8>>).unwrap();
             self.voxelsize = size;
             self.voxelbuf = ocl::Buffer::<u8>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_READ_WRITE).len((size,size,size)).build().unwrap();
         }
-        self.mandkern.set_arg_buf_named("voxels", Some(&self.voxelbuf)).unwrap();
-        self.mandkern.set_arg_scl_named("power", power).unwrap();
+        self.mandkern.set_arg("voxels", &self.voxelbuf).unwrap();
+        self.mandkern.set_arg("power", power).unwrap();
 
         unsafe {
-            self.mandkern.cmd().gwo((0,0,0)).gws((size,size,size)).enq().unwrap();
+            self.mandkern.cmd().global_work_offset((0,0,0)).global_work_size((size,size,size)).enq().unwrap();
         }
     }
 
@@ -84,8 +86,8 @@ impl Bulbocl {
         if self.imagewidth != width || self.imageheight != height {
             // Need to resize the buffer
             // TODO: wait for the queue to empty
-            self.renderkern.set_arg_buf_named("image", None::<ocl::Buffer<u8>>).unwrap();
-            self.renderkern.set_arg_buf_named("debug", None::<ocl::Buffer<f32>>).unwrap();
+            self.renderkern.set_arg("image", None::<&ocl::Buffer<u8>>).unwrap();
+            self.renderkern.set_arg("debug", None::<&ocl::Buffer<f32>>).unwrap();
             self.imagewidth = width;
             self.imageheight = height;
             self.imagebuf = ocl::Buffer::<u8>::builder().queue(self.queue.clone()).flags(ocl::flags::MEM_WRITE_ONLY).len((4*width, height)).build().unwrap();
@@ -113,13 +115,13 @@ impl Bulbocl {
         config[17] = light[2] * self.voxelsize as f32; /* Light z */
         self.imageconfigbuf.write(&config).enq().unwrap();
 
-        self.renderkern.set_arg_buf_named("voxels", Some(&self.voxelbuf)).unwrap();
-        self.renderkern.set_arg_buf_named("image", Some(&self.imagebuf)).unwrap();
-        self.renderkern.set_arg_buf_named("config", Some(&self.imageconfigbuf)).unwrap();
-        self.renderkern.set_arg_buf_named("debug", Some(&self.imagedebugbuf)).unwrap();
+        self.renderkern.set_arg("voxels", &self.voxelbuf).unwrap();
+        self.renderkern.set_arg("image", &self.imagebuf).unwrap();
+        self.renderkern.set_arg("config", &self.imageconfigbuf).unwrap();
+        self.renderkern.set_arg("debug", &self.imagedebugbuf).unwrap();
         // TODO: Queue wait for the voxels
         unsafe {
-            self.renderkern.cmd().gwo((0,0)).gws((width, height)).enq().unwrap();
+            self.renderkern.cmd().global_work_offset((0,0)).global_work_size((width, height)).enq().unwrap();
         }
         // TODO: Queue wait for the image
         // Copy the image out
