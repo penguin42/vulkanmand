@@ -1,12 +1,12 @@
 // Based on the tutorial at
 //   https://mmstick.github.io/gtkrs-tutorials/chapter_01.html
+extern crate glib;
 extern crate gtk;
 extern crate cairo;
 extern crate nalgebra as na;
 use gtk::*;
 use cairo::*;
 use std::fs::File;
-use std::process;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
@@ -300,13 +300,12 @@ fn do_zoom(app: &mut App, scale: f32) {
     app.state.vp_down *= scale;
     do_redraw(app, false);
 }
-fn main() {
+fn main() -> Result<(), glib::error::BoolError> {
+    gtk::init()?;
 
-    if gtk::init().is_err() {
-        eprintln!("failed to init GTK app");
-        process::exit(1);
-    }
     App::new(Bulbocl::new(), State::new()).init();
 
     gtk::main();
+
+    Ok(())
 }
