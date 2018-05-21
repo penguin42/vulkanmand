@@ -11,8 +11,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
 
-mod bulbocl;
-use bulbocl::*;
+mod bulbvulk;
+use bulbvulk::*;
 
 pub struct State {
     power: f32,
@@ -64,12 +64,12 @@ pub struct App {
 
     pub powerscale: Scale,
 
-    pub bulbocl: Bulbocl,
+    pub bulbvulk: Bulbvulk,
     pub state: State,
 }
 
 impl App {
-    fn new(bulbocl: Bulbocl, state: State) -> App {
+    fn new(bulbvulk: Bulbvulk, state: State) -> App {
         let window = Window::new(WindowType::Toplevel);
         window.set_title("Mandelbulb");
         window.set_wmclass("app-name", "Mandelbulb");
@@ -170,7 +170,7 @@ impl App {
               rotzbutplus, rotzbutminus,
               zoomin, zoomout,
               saveimagebut, savevoxelsbut, savedebugbut,
-              statsfullval, statstraceval, bulbocl, state
+              statsfullval, statstraceval, bulbvulk, state
             }
     }
 
@@ -238,12 +238,12 @@ impl App {
         {
             let app = apprc.clone();
 
-            appb.savevoxelsbut.connect_clicked(move |_| { app.borrow_mut().bulbocl.save_voxels(); });
+            appb.savevoxelsbut.connect_clicked(move |_| { app.borrow_mut().bulbvulk.save_voxels(); });
         }
         {
             let app = apprc.clone();
 
-            appb.savedebugbut.connect_clicked(move |_| { app.borrow_mut().bulbocl.save_debug(); });
+            appb.savedebugbut.connect_clicked(move |_| { app.borrow_mut().bulbvulk.save_debug(); });
         }
     }
 
@@ -257,12 +257,12 @@ fn do_redraw(app: &mut App, recalc_fractal: bool) {
     let start = Instant::now();
 
     if recalc_fractal {
-        app.bulbocl.calc_bulb(256, app.state.power);
+        app.bulbvulk.calc_bulb(256, app.state.power);
     }
     app.outputimage.set_from_surface(None);
     {
         let mut id = app.outputis.get_data().unwrap();
-        app.bulbocl.render_image(&mut id, 512, 512, app.state.eye, app.state.vp_mid, app.state.vp_right, app.state.vp_down, app.state.light );
+        app.bulbvulk.render_image(&mut id, 512, 512, app.state.eye, app.state.vp_mid, app.state.vp_right, app.state.vp_down, app.state.light );
     }
 
     let end = Instant::now();
@@ -303,7 +303,7 @@ fn do_zoom(app: &mut App, scale: f32) {
 fn main() -> Result<(), glib::error::BoolError> {
     gtk::init()?;
 
-    App::new(Bulbocl::new(), State::new()).init();
+    App::new(Bulbvulk::new(), State::new()).init();
 
     gtk::main();
 

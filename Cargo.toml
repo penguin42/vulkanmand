@@ -1,5 +1,5 @@
 [package]
-name = "ocl"
+name = "vulkanmand"
 version = "0.1.0"
 authors = ["Dr. David Alan Gilbert <dave@treblig.org>"]
 
@@ -8,6 +8,5 @@ glib = { version = "0.5.0" }
 gdk-sys = { version = "0.6.0" }
 cairo-rs = { version = "0.4.0", features = ["png"] }
 gtk = { version = "0.4.1", features = ["v3_16"] }
-ocl = { version = "0.18" }
 nalgebra = { version = "0.14.2" }
 bincode = { version = "1.0.0" }
