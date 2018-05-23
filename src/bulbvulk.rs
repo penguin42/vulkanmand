@@ -1,17 +1,37 @@
 // based on the trival.rs example from the ocl crate
 
+extern crate vulkano;
 extern crate nalgebra as na;
 extern crate bincode;
 use std::fs::File;
 use std::io::Write;
+use std::sync::Arc;
+use self::vulkano::instance;
 
-const RENDER_CONFIG_SIZE : usize =  18;
+// I'd like these to be part of Bulbvulk, but that
+// gets passed by references in device handlers, but I don't
+// really want to force it to be static
+
+lazy_static! {
+    static ref VINSTANCE: Arc<instance::Instance> = {
+        let vitmp = instance::Instance::new(None,
+                                       &instance::InstanceExtensions::none(),
+                                       None).unwrap();
+        vitmp
+    };
+    static ref VPHYSDEVICE: instance::PhysicalDevice<'static> = {
+        let vpdev = instance::PhysicalDevice::enumerate(&VINSTANCE).next().unwrap();
+
+        vpdev
+    };
+}
 
 pub struct Bulbvulk {
     voxelsize: usize, // typically 256 for 256x256x256
 
     imagewidth: usize,
     imageheight: usize,
+
 }
 
 impl Bulbvulk {
@@ -21,7 +41,8 @@ impl Bulbvulk {
         let imagewidth = 4; // Dummy initial dimension
         let imageheight = 4; // Dummy initial dimension
 
-        Bulbvulk {  imagewidth, imageheight, voxelsize }
+        println!("Vulkan device: {}", VPHYSDEVICE.name());
+        Bulbvulk { imagewidth, imageheight, voxelsize }
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {
