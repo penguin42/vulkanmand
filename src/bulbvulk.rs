@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::Write;
 use std::sync::Arc;
 use self::vulkano::instance;
+use self::vulkano::device;
 
 // I'd like these to be part of Bulbvulk, but that
 // gets passed by references in device handlers, but I don't
@@ -32,6 +33,8 @@ pub struct Bulbvulk {
     imagewidth: usize,
     imageheight: usize,
 
+    vdevice: Arc<device::Device>,
+    vqueue: Arc<device::Queue>,
 }
 
 impl Bulbvulk {
@@ -40,9 +43,13 @@ impl Bulbvulk {
 
         let imagewidth = 4; // Dummy initial dimension
         let imageheight = 4; // Dummy initial dimension
+        let qf = VPHYSDEVICE.queue_families().filter(|q| q.supports_compute() && q.supports_transfers()).next().unwrap();
 
+        let (vdevice, mut vqueueiter) = device::Device::new(*VPHYSDEVICE, &instance::Features::none(), &instance::DeviceExtensions::none(), Some((qf, 1.0))).unwrap();
+        // Only using one queue
+        let vqueue = vqueueiter.next().unwrap();
         println!("Vulkan device: {}", VPHYSDEVICE.name());
-        Bulbvulk { imagewidth, imageheight, voxelsize }
+        Bulbvulk { imagewidth, imageheight, voxelsize, vdevice, vqueue }
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {
