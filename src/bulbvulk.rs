@@ -8,6 +8,7 @@ use std::io::Write;
 use std::sync::Arc;
 use self::vulkano::instance;
 use self::vulkano::device;
+use self::vulkano::buffer;
 
 // I'd like these to be part of Bulbvulk, but that
 // gets passed by references in device handlers, but I don't
@@ -35,6 +36,8 @@ pub struct Bulbvulk {
 
     vdevice: Arc<device::Device>,
     vqueue: Arc<device::Queue>,
+
+    voxelbuf: Arc<buffer::device_local::DeviceLocalBuffer<[u8]>>,
 }
 
 impl Bulbvulk {
@@ -48,14 +51,21 @@ impl Bulbvulk {
         let (vdevice, mut vqueueiter) = device::Device::new(*VPHYSDEVICE, &instance::Features::none(), &instance::DeviceExtensions::none(), Some((qf, 1.0))).unwrap();
         // Only using one queue
         let vqueue = vqueueiter.next().unwrap();
+
+        // I want to use an Image, but I can't figure out which image to use here
+        let voxelbuf = buffer::device_local::DeviceLocalBuffer::<[u8]>::array(vdevice.clone(), voxelsize*voxelsize*voxelsize,
+                                                                              buffer::BufferUsage::all(), vdevice.active_queue_families()).unwrap();
         println!("Vulkan device: {}", VPHYSDEVICE.name());
-        Bulbvulk { imagewidth, imageheight, voxelsize, vdevice, vqueue }
+        Bulbvulk { imagewidth, imageheight, voxelsize,
+                   vdevice, vqueue, voxelbuf }
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {
         if self.voxelsize != size {
             // Need to resize the buffer
             self.voxelsize = size;
+            self.voxelbuf = buffer::device_local::DeviceLocalBuffer::<[u8]>::array(self.vdevice.clone(), self.voxelsize*self.voxelsize*self.voxelsize,
+                                                                              buffer::BufferUsage::all(), self.vdevice.active_queue_families()).unwrap();
         }
 
     }
