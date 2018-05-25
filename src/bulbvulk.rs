@@ -4,11 +4,12 @@ extern crate vulkano;
 extern crate nalgebra as na;
 extern crate bincode;
 use std::fs::File;
-use std::io::Write;
+use std::io::*;
 use std::sync::Arc;
 use self::vulkano::instance;
 use self::vulkano::device;
 use self::vulkano::buffer;
+use self::vulkano::pipeline::shader;
 
 // I'd like these to be part of Bulbvulk, but that
 // gets passed by references in device handlers, but I don't
@@ -38,6 +39,8 @@ pub struct Bulbvulk {
     vqueue: Arc<device::Queue>,
 
     voxelbuf: Arc<buffer::device_local::DeviceLocalBuffer<[u8]>>,
+
+    mandcs: Arc<shader::ShaderModule>,
 }
 
 impl Bulbvulk {
@@ -55,9 +58,16 @@ impl Bulbvulk {
         // I want to use an Image, but I can't figure out which image to use here
         let voxelbuf = buffer::device_local::DeviceLocalBuffer::<[u8]>::array(vdevice.clone(), voxelsize*voxelsize*voxelsize,
                                                                               buffer::BufferUsage::all(), vdevice.active_queue_families()).unwrap();
+
+        let mandcs = {
+            let mut f = File::open("mandel.spv").unwrap();
+            let mut v = vec![];
+            f.read_to_end(&mut v).unwrap();
+            unsafe { shader::ShaderModule::new(vdevice.clone(), &v) }.unwrap()
+        };
         println!("Vulkan device: {}", VPHYSDEVICE.name());
         Bulbvulk { imagewidth, imageheight, voxelsize,
-                   vdevice, vqueue, voxelbuf }
+                   vdevice, vqueue, voxelbuf, mandcs }
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {
