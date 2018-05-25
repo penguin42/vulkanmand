@@ -1,5 +1,7 @@
 #version 450
 
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
 // compile me with glslangValidator -V mandel.comp -o mandel.spv
 layout(std430, binding = 0) buffer Voxels
 {
@@ -8,6 +10,37 @@ layout(std430, binding = 0) buffer Voxels
 
 
 void main() {
-  // TODO
+  vec3 size = gl_NumWorkGroups;
+  vec3 scale = vec3(1.2*2.0);
+  vec3 halfsize = size / 2.0;
+  // I'm running with a local size of 1, so I think this makes index calcs easy
+  vec3 hereraw = gl_GlobalInvocationID;
+
+  vec3 here = scale * (hereraw - halfsize) / size;
+
+  int maxit = 80;
+  float mandpow = 8.0; // TODO: Pass in
+  lowp int i;
+  vec3 l;
+  for (i=0, l=vec3(0.0);
+       (i < maxit) && (l.x*l.x+l.y*l.y+l.z*l.z) < 2.0;
+       i++) {
+    float r = sqrt(l.x*l.x + l.y*l.y + l.z*l.z);
+    float theta = atan(sqrt(l.x*l.x+l.y*l.y), l.z);
+    float phi = atan(l.y, l.x);
+
+    /* These maths from http://www.skytopia.com/project/fractal/mandelbulb.html */
+    float rpow = pow(r,mandpow);
+    vec3 next = vec3(rpow * sin(theta*mandpow) * cos(phi*mandpow), 
+                 rpow * sin(theta*mandpow) * sin(phi*mandpow),
+                 rpow * cos(theta*mandpow));
+
+    l = next + here;
+  }
+  uint index = gl_GlobalInvocationID.z * gl_NumWorkGroups.y * gl_NumWorkGroups.x +
+               gl_GlobalInvocationID.y * gl_NumWorkGroups.x +
+               gl_GlobalInvocationID.x;
+              
+  voxels.data[index] = i;
 }
 
