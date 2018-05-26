@@ -3,13 +3,17 @@
 extern crate vulkano;
 extern crate nalgebra as na;
 extern crate bincode;
+use std::ffi::CStr;
 use std::fs::File;
 use std::io::*;
 use std::sync::Arc;
 use self::vulkano::instance;
 use self::vulkano::device;
 use self::vulkano::buffer;
+use self::vulkano::descriptor::descriptor;
+use self::vulkano::descriptor::pipeline_layout;
 use self::vulkano::pipeline::shader;
+use self::vulkano::pipeline::ComputePipeline;
 
 // I'd like these to be part of Bulbvulk, but that
 // gets passed by references in device handlers, but I don't
@@ -29,6 +33,43 @@ lazy_static! {
     };
 }
 
+#[derive(Debug, Copy, Clone)]
+struct MandLayout(descriptor::ShaderStages);
+unsafe impl pipeline_layout::PipelineLayoutDesc for MandLayout {
+        // We just have 'voxels' which is binding 0 in set 0
+        fn num_sets(&self) -> usize { 1 }
+        fn num_bindings_in_set(&self, set: usize) -> Option<usize> {
+            match set {
+                0 => Some(1),
+                _ => None,
+            }
+        }
+        fn descriptor(&self, set: usize, binding: usize) -> Option<descriptor::DescriptorDesc> {
+            match (set, binding) {
+                (0,0) => Some(descriptor::DescriptorDesc {
+                      array_count: 1,
+                      stages: descriptor::ShaderStages { compute: true, ..descriptor::ShaderStages::none() },
+                      readonly: false,
+                      ty: descriptor::DescriptorDescTy::Buffer(descriptor::DescriptorBufferDesc {
+                          dynamic: Some(false),  // ?
+                          storage: true, // ?
+                        }),
+                    }),
+                _ => None,
+            }
+        }
+
+        // We have no push constants
+        fn num_push_constants_ranges(&self) -> usize { 0 }
+        fn push_constants_range(&self, num: usize) -> Option<pipeline_layout::PipelineLayoutDescPcRange> {
+            if num != 0 || 0 == 0 { return None; }
+            Some(pipeline_layout::PipelineLayoutDescPcRange { offset: 0,
+                                             size: 0,
+                                             stages: descriptor::ShaderStages::all() })
+        }
+
+}
+
 pub struct Bulbvulk {
     voxelsize: usize, // typically 256 for 256x256x256
 
@@ -41,6 +82,7 @@ pub struct Bulbvulk {
     voxelbuf: Arc<buffer::device_local::DeviceLocalBuffer<[u8]>>,
 
     mandcs: Arc<shader::ShaderModule>,
+    mandpipe: ComputePipeline<pipeline_layout::PipelineLayout<MandLayout>>,
 }
 
 impl Bulbvulk {
@@ -65,9 +107,17 @@ impl Bulbvulk {
             f.read_to_end(&mut v).unwrap();
             unsafe { shader::ShaderModule::new(vdevice.clone(), &v) }.unwrap()
         };
+        let mandpipe = unsafe { 
+            ComputePipeline::new(vdevice.clone(),
+                                 &mandcs.compute_entry_point(CStr::from_bytes_with_nul_unchecked(b"main\0"),
+                                                             MandLayout(descriptor::ShaderStages { compute: true, ..descriptor::ShaderStages::none() })
+                                                            ),
+                                 &()).unwrap()
+        };
         println!("Vulkan device: {}", VPHYSDEVICE.name());
         Bulbvulk { imagewidth, imageheight, voxelsize,
-                   vdevice, vqueue, voxelbuf, mandcs }
+                   vdevice, vqueue, voxelbuf,
+                   mandcs, mandpipe }
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {
