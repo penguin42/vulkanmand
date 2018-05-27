@@ -5,7 +5,7 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 // compile me with glslangValidator -V mandel.comp -o mandel.spv
 layout(std430, binding = 0) buffer Voxels
 {
-  lowp uint data[];
+  uint data[];
 } voxels;
 
 
@@ -41,8 +41,6 @@ void main() {
                gl_GlobalInvocationID.y * gl_NumWorkGroups.x +
                gl_GlobalInvocationID.x;
               
-  // Debug hack! I'm seeing these values spaced out at 4 bytes not 1 byte
-  lowp uint tmpindex = gl_GlobalInvocationID.x & 255;
-  voxels.data[index] = tmpindex;
+  voxels.data[index] = i;
 }
 

@@ -84,7 +84,7 @@ pub struct Bulbvulk {
     vdevice: Arc<device::Device>,
     vqueue: Arc<device::Queue>,
 
-    voxelbuf: Arc<buffer::device_local::DeviceLocalBuffer<[u8]>>,
+    voxelbuf: Arc<buffer::device_local::DeviceLocalBuffer<[u32]>>,
 
     mandcs: Arc<shader::ShaderModule>,
     mandpipe: Arc<ComputePipeline<pipeline_layout::PipelineLayout<MandLayout>>>,
@@ -103,7 +103,7 @@ impl Bulbvulk {
         let vqueue = vqueueiter.next().unwrap();
 
         // I want to use an Image, but I can't figure out which image to use here
-        let voxelbuf = buffer::device_local::DeviceLocalBuffer::<[u8]>::array(vdevice.clone(), voxelsize*voxelsize*voxelsize,
+        let voxelbuf = buffer::device_local::DeviceLocalBuffer::<[u32]>::array(vdevice.clone(), voxelsize*voxelsize*voxelsize,
                                                                               buffer::BufferUsage::all(), vdevice.active_queue_families()).unwrap();
 
         let mandcs = {
@@ -129,7 +129,7 @@ impl Bulbvulk {
         if self.voxelsize != size {
             // Need to resize the buffer
             self.voxelsize = size;
-            self.voxelbuf = buffer::device_local::DeviceLocalBuffer::<[u8]>::array(self.vdevice.clone(), self.voxelsize*self.voxelsize*self.voxelsize,
+            self.voxelbuf = buffer::device_local::DeviceLocalBuffer::<[u32]>::array(self.vdevice.clone(), self.voxelsize*self.voxelsize*self.voxelsize,
                                                                               buffer::BufferUsage::all(), self.vdevice.active_queue_families()).unwrap();
         }
         // Do I really want persistent - this is transitory
@@ -170,7 +170,7 @@ impl Bulbvulk {
         // we copy it into a temporary CPU buffer
         // I'd like to use a CpuBufferPool here but there doesn't seem to be a way to do array
         // allocations
-        let cpubuf = unsafe { buffer::cpu_access::CpuAccessibleBuffer::<[u8]>::uninitialized_array(self.vdevice.clone(),
+        let cpubuf = unsafe { buffer::cpu_access::CpuAccessibleBuffer::<[u32]>::uninitialized_array(self.vdevice.clone(),
                                                                                           self.voxelsize*self.voxelsize*self.voxelsize,
                                                                                           vulkano::buffer::BufferUsage::all()).unwrap() };
 
@@ -184,7 +184,7 @@ impl Bulbvulk {
 
         let cpubufread = cpubuf.read().unwrap();
         let mut file = File::create("voxels.dat").unwrap();
-        file.write_all(&cpubufread.to_owned()).unwrap();
+        bincode::serialize_into(&mut file, &cpubufread.to_owned()).unwrap();
     }
 
     pub fn save_debug(&mut self) {
