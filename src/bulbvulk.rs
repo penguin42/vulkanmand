@@ -10,10 +10,14 @@ use std::sync::Arc;
 use self::vulkano::instance;
 use self::vulkano::device;
 use self::vulkano::buffer;
+use self::vulkano::command_buffer;
 use self::vulkano::descriptor::descriptor;
+use self::vulkano::descriptor::descriptor_set;
 use self::vulkano::descriptor::pipeline_layout;
 use self::vulkano::pipeline::shader;
 use self::vulkano::pipeline::ComputePipeline;
+use self::vulkano::sync;
+use self::vulkano::sync::GpuFuture;
 
 // I'd like these to be part of Bulbvulk, but that
 // gets passed by references in device handlers, but I don't
@@ -82,7 +86,7 @@ pub struct Bulbvulk {
     voxelbuf: Arc<buffer::device_local::DeviceLocalBuffer<[u8]>>,
 
     mandcs: Arc<shader::ShaderModule>,
-    mandpipe: ComputePipeline<pipeline_layout::PipelineLayout<MandLayout>>,
+    mandpipe: Arc<ComputePipeline<pipeline_layout::PipelineLayout<MandLayout>>>,
 }
 
 impl Bulbvulk {
@@ -107,13 +111,13 @@ impl Bulbvulk {
             f.read_to_end(&mut v).unwrap();
             unsafe { shader::ShaderModule::new(vdevice.clone(), &v) }.unwrap()
         };
-        let mandpipe = unsafe { 
+        let mandpipe = Arc::new(unsafe {
             ComputePipeline::new(vdevice.clone(),
                                  &mandcs.compute_entry_point(CStr::from_bytes_with_nul_unchecked(b"main\0"),
                                                              MandLayout(descriptor::ShaderStages { compute: true, ..descriptor::ShaderStages::none() })
                                                             ),
                                  &()).unwrap()
-        };
+        });
         println!("Vulkan device: {}", VPHYSDEVICE.name());
         Bulbvulk { imagewidth, imageheight, voxelsize,
                    vdevice, vqueue, voxelbuf,
@@ -127,7 +131,21 @@ impl Bulbvulk {
             self.voxelbuf = buffer::device_local::DeviceLocalBuffer::<[u8]>::array(self.vdevice.clone(), self.voxelsize*self.voxelsize*self.voxelsize,
                                                                               buffer::BufferUsage::all(), self.vdevice.active_queue_families()).unwrap();
         }
-
+        // Do I really want persistent - this is transitory
+        let set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.mandpipe.clone(), 0)
+                  .add_buffer(self.voxelbuf.clone()).unwrap()
+                  .build().unwrap());
+        let vsize32 = self.voxelsize as u32;
+        let combuf = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
+                     .dispatch([vsize32, vsize32, vsize32],
+                               self.mandpipe.clone(), set.clone(), ( /* push constants?? */)).unwrap()
+                     .build().unwrap();
+        // Engage!
+        let future = sync::now(self.vdevice.clone())
+                     .then_execute(self.vqueue.clone(), combuf).unwrap()
+                     .then_signal_fence_and_flush().unwrap();
+        // Wait for it
+        future.wait(None).unwrap();
     }
 
     pub fn render_image(&mut self, result: &mut [u8],
