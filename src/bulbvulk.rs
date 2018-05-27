@@ -10,6 +10,7 @@ use std::sync::Arc;
 use self::vulkano::instance;
 use self::vulkano::device;
 use self::vulkano::buffer;
+use self::vulkano::buffer::BufferAccess;
 use self::vulkano::command_buffer;
 use self::vulkano::descriptor::descriptor;
 use self::vulkano::descriptor::descriptor_set;
@@ -165,9 +166,25 @@ impl Bulbvulk {
     }
 
     pub fn save_voxels(&mut self) {
-        let mut tmpvec = vec![0u8; self.voxelsize*self.voxelsize*self.voxelsize];
+        // We can't read directly from the voxel buffer since it's DeviceLocal, so
+        // we copy it into a temporary CPU buffer
+        // I'd like to use a CpuBufferPool here but there doesn't seem to be a way to do array
+        // allocations
+        let cpubuf = unsafe { buffer::cpu_access::CpuAccessibleBuffer::<[u8]>::uninitialized_array(self.vdevice.clone(),
+                                                                                          self.voxelsize*self.voxelsize*self.voxelsize,
+                                                                                          vulkano::buffer::BufferUsage::all()).unwrap() };
+
+        let combuf = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
+                       .copy_buffer(self.voxelbuf.clone(), cpubuf.clone()).unwrap()
+                       .build().unwrap();
+        let future = sync::now(self.vdevice.clone())
+                     .then_execute(self.vqueue.clone(), combuf).unwrap()
+                     .then_signal_fence_and_flush().unwrap();
+        future.wait(None).unwrap();
+
+        let cpubufread = cpubuf.read().unwrap();
         let mut file = File::create("voxels.dat").unwrap();
-        file.write_all(tmpvec.as_slice()).unwrap();
+        file.write_all(&cpubufread.to_owned()).unwrap();
     }
 
     pub fn save_debug(&mut self) {
