@@ -19,6 +19,71 @@ layout(std430,push_constant, binding = 0) uniform Pc {
   vec3 voxelsize;
 } pc;
 
+bool hitend(float cur, float dir, float lim) {
+  if (dir >= 0) {
+     return cur > lim;
+  } else {
+     return cur <= 0;
+  }
+}
+
 void main() {
+  // Need modifying if I change local_size?
+  vec2 hereraw = gl_GlobalInvocationID.xy;
+  ivec2 herei = ivec2 ( hereraw );
+  vec2 sizeraw = gl_NumWorkGroups.xy;
+  vec2 halfsize = sizeraw / 2.0;
+  uint width = uint(sizeraw.x);
+  uint height = uint(sizeraw.y);
+  ivec3 vsize = ivec3(pc.voxelsize.x, pc.voxelsize.y, pc.voxelsize.z);
+
+  // -1.0 - 1.0 in view plane
+  vec2 v1 = vec2( (hereraw.x - halfsize.x) / halfsize.x, (hereraw.y - halfsize.y) / halfsize.y);
+
+  // Pixel in view plane
+  vec3 pvp = pc.vpmid + vec3(v1.x * pc.vpplusx.x + v1.y * pc.vpplusy.x,
+                             v1.x * pc.vpplusx.y + v1.y * pc.vpplusy.y,
+                             v1.x * pc.vpplusx.z + v1.y * pc.vpplusy.z);
+
+  // Ray vector - from the eye through the view plane
+  vec3 ray = pvp - pc.eye;
+
+  // We probably should use bresenham - but I'll just scale to make
+  // sure that none of rx/ry/rz are greater than a pixel
+  ray = ray / length(ray);
+
+  float result = 0.0;
+  bool hitx = false;
+  bool hity = false;
+  bool hitz = false;
+  bool hitedge = false;
+  float lighting = 0.0;
+  while (result <= 255.4 && !hitedge &&
+         !(hitx=hitend(pvp.x, ray.x, vsize.x)) &&
+         !(hity=hitend(pvp.y, ray.y, vsize.y)) &&
+         !(hitz=hitend(pvp.z, ray.y, vsize.z))) {
+    if (pvp.x >= 0.0f && pvp.x < vsize.x &&
+        pvp.y >= 0.0f && pvp.y < vsize.y &&
+        pvp.z >= 0.0f && pvp.z < vsize.z) {
+      // OK, we've hit the voxel array
+      ivec3 ipvp = ivec3(pvp.x, pvp.y, pvp.z);
+
+      uint value = voxels.data[ipvp.z*vsize.y*vsize.x + ipvp.y*vsize.y + ipvp.x];
+      if (value > 79) {
+        hitedge = true;
+        //lighting = lightangle(ex,ey,ez, vx, vy, vz, lightx, lighty, lightz);
+      }
+      result+= float(value/8.0);
+    }
+    pvp += ray;
+  }
+
+  if (result > 255.0) result=255.0;
+
+  uvec4 data = ivec4( int(v1.x * 128),
+                      0,
+                      hitedge?int(result):0,
+                      0);
+  imageStore(im, herei, data);
 }
 
