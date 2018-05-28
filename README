@@ -1,1 +1,12 @@
 Just my Vulkan playground
+  (c) 2018 Dr. David Alan Gilbert dave@treblig.org
+
+Feel free to use this code as you like; some is based on
+the Vulkano examples.  Please credit me for the rest.
+
+TODO:
+  Use image rather than buffer for voxels
+  Speed up raytracer (slower than OpenCL)
+    Stop passing byte array for output image to render_image
+  Fix gl_NumWorkGroups use in mandel to allow x/y local sizes
+  stop using storage buffers?
