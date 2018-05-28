@@ -267,11 +267,16 @@ impl Bulbvulk {
            voxelsizez: f32,
            voxelsizegap: f32,
         };
-        let pc = PushConstants { eyex: eye.x, eyey: eye.y, eyez: eye.z, eyegap: -1.0,
-                                 vpmidx: vp_mid.x, vpmidy: vp_mid.y, vpmidz: vp_mid.z, vpmidgap: -1.0,
-                                 vprightx: vp_right.x, vprighty: vp_right.y, vprightz: vp_right.z, vprightgap: -1.0,
-                                 vpdownx: vp_down.x, vpdowny: vp_down.y, vpdownz: vp_down.z, vpdowngap: -1.0,
-                                 lightx: light.x, lighty: light.y, lightz: light.z, lightgap: -1.0,
+        let seye = eye * self.voxelsize as f32;
+        let svp_mid = vp_mid * self.voxelsize as f32;
+        let svp_right = vp_right * self.voxelsize as f32;
+        let svp_down = vp_down * self.voxelsize as f32;
+        let slight = light * self.voxelsize as f32;
+        let pc = PushConstants { eyex: seye.x, eyey: seye.y, eyez: seye.z, eyegap: -1.0,
+                                 vpmidx: svp_mid.x, vpmidy: svp_mid.y, vpmidz: svp_mid.z, vpmidgap: -1.0,
+                                 vprightx: svp_right.x, vprighty: svp_right.y, vprightz: svp_right.z, vprightgap: -1.0,
+                                 vpdownx: svp_down.x, vpdowny: svp_down.y, vpdownz: svp_down.z, vpdowngap: -1.0,
+                                 lightx: slight.x, lighty: slight.y, lightz: slight.z, lightgap: -1.0,
                                  voxelsizex: self.voxelsize as f32, voxelsizey: self.voxelsize as f32, voxelsizez: self.voxelsize as f32, voxelsizegap: -1.0,
                                };
 
