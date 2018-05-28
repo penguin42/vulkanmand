@@ -27,6 +27,26 @@ bool hitend(float cur, float dir, float lim) {
   }
 }
 
+// Angle between the eye, the voxel (vx/y/z) and the light (lx/y/z)
+float lightangle(vec3 eye, vec3 voxel,  vec3 light) {
+  // Vector from eye to voxel
+  vec3 ev = voxel - eye;
+  // Vector from light to voxel
+  vec3 lv = voxel - light;
+
+  float magev = length(ev);
+  float maglv = length(lv);
+
+  float dotp = dot(ev,lv);
+
+  // cos(angle)
+  float cosang = dotp / (magev * maglv);
+
+  float res = pow(cosang,2.0); // About 0.39..0.72
+  if (res < 0) res = 0;
+  return res;
+}
+
 void main() {
   // Need modifying if I change local_size?
   vec2 hereraw = gl_GlobalInvocationID.xy;
@@ -61,7 +81,7 @@ void main() {
   while (result <= 255.4 && !hitedge &&
          !(hitx=hitend(pvp.x, ray.x, vsize.x)) &&
          !(hity=hitend(pvp.y, ray.y, vsize.y)) &&
-         !(hitz=hitend(pvp.z, ray.y, vsize.z))) {
+         !(hitz=hitend(pvp.z, ray.z, vsize.z))) {
     if (pvp.x >= 0.0f && pvp.x < vsize.x &&
         pvp.y >= 0.0f && pvp.y < vsize.y &&
         pvp.z >= 0.0f && pvp.z < vsize.z) {
@@ -71,7 +91,7 @@ void main() {
       uint value = voxels.data[ipvp.z*vsize.y*vsize.x + ipvp.y*vsize.y + ipvp.x];
       if (value > 79) {
         hitedge = true;
-        //lighting = lightangle(ex,ey,ez, vx, vy, vz, lightx, lighty, lightz);
+        lighting = lightangle(pc.eye, pvp, pc.light);
       }
       result+= float(value/8.0);
     }
@@ -80,8 +100,8 @@ void main() {
 
   if (result > 255.0) result=255.0;
 
-  uvec4 data = ivec4( int(v1.x * 128),
-                      0,
+  uvec4 data = ivec4( hitedge?0x20:0,
+                      lighting * 128,
                       hitedge?int(result):0,
                       0);
   imageStore(im, herei, data);
