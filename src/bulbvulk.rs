@@ -234,6 +234,47 @@ impl Bulbvulk {
                         vp_down: na::Vector3<f32>,
                         light: na::Vector3<f32>
                         ) {
+        #[repr(C)]
+        // This MUST match the push_constant binding in the GLSL
+        struct PushConstants {
+           eyex: f32,
+           eyey: f32,
+           eyez: f32,
+           eyegap: f32,
+
+           vpmidx: f32,
+           vpmidy: f32,
+           vpmidz: f32,
+           vpmidgap: f32,
+
+           vprightx: f32,
+           vprighty: f32,
+           vprightz: f32,
+           vprightgap: f32,
+
+           vpdownx: f32,
+           vpdowny: f32,
+           vpdownz: f32,
+           vpdowngap: f32,
+
+           lightx: f32,
+           lighty: f32,
+           lightz: f32,
+           lightgap: f32,
+
+           voxelsizex: f32,
+           voxelsizey: f32,
+           voxelsizez: f32,
+           voxelsizegap: f32,
+        };
+        let pc = PushConstants { eyex: eye.x, eyey: eye.y, eyez: eye.z, eyegap: -1.0,
+                                 vpmidx: vp_mid.x, vpmidy: vp_mid.y, vpmidz: vp_mid.z, vpmidgap: -1.0,
+                                 vprightx: vp_right.x, vprighty: vp_right.y, vprightz: vp_right.z, vprightgap: -1.0,
+                                 vpdownx: vp_down.x, vpdowny: vp_down.y, vpdownz: vp_down.z, vpdowngap: -1.0,
+                                 lightx: light.x, lighty: light.y, lightz: light.z, lightgap: -1.0,
+                                 voxelsizex: self.voxelsize as f32, voxelsizey: self.voxelsize as f32, voxelsizez: self.voxelsize as f32, voxelsizegap: -1.0,
+                               };
+
         if self.imagewidth != width || self.imageheight != height {
             // Need to resize the buffer
             self.imagewidth = width;
@@ -252,7 +293,7 @@ impl Bulbvulk {
                   .build().unwrap());
         let combuf = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
                      .dispatch([self.imagewidth as u32, self.imageheight as u32, 1],
-                               self.raypipe.clone(), set.clone(), ( /* push constants?? */)).unwrap()
+                               self.raypipe.clone(), set.clone(), pc).unwrap()
                      .build().unwrap();
         // Engage!
         let future = sync::now(self.vdevice.clone())
