@@ -1,0 +1,24 @@
+#version 450
+
+layout(local_size_x = 1, local_size_y = 1) in;
+
+// compile me with glslangValidator -V ray.comp -o ray.spv
+layout(std430, binding = 0) buffer Voxels
+{
+  uint data[];
+} voxels;
+
+layout(rgba8ui, binding = 1) uniform writeonly uimage2D im;
+
+layout(std430,push_constant, binding = 0) uniform Pc {
+  vec3 eye;
+  vec3 vpmid;
+  vec3 vpplusx; // half of width
+  vec3 vpplusy; // half of height
+  vec3 light;
+  vec3 voxelsize;
+} pc;
+
+void main() {
+}
+
