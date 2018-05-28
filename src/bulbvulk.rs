@@ -345,12 +345,5 @@ impl Bulbvulk {
         let mut file = File::create("voxels.dat").unwrap();
         bincode::serialize_into(&mut file, &cpubufread.to_owned()).unwrap();
     }
-
-    pub fn save_debug(&mut self) {
-        let mut tmpvec = vec![0.0f32; self.imagewidth*self.imageheight];
-        let mut file = File::create("debug.dat").unwrap();
-        bincode::serialize_into(&mut file, &tmpvec).unwrap();
-    }
-
 }
 

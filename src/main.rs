@@ -60,7 +60,6 @@ pub struct App {
 
     pub saveimagebut: Button,
     pub savevoxelsbut: Button,
-    pub savedebugbut: Button,
 
     pub statsfullval: Label,
     pub statstraceval: Label,
@@ -139,11 +138,9 @@ impl App {
         let savehbox = Box::new(Orientation::Horizontal, 3);
         let saveimagebut = Button::new_with_label("image");
         let savevoxelsbut = Button::new_with_label("voxels");
-        let savedebugbut = Button::new_with_label("debug");
         savehbox.pack_start(&Label::new("Save:"), false, false, 0);
         savehbox.pack_start(&saveimagebut, false, false, 0);
         savehbox.pack_start(&savevoxelsbut, false, false, 0);
-        savehbox.pack_start(&savedebugbut, false, false, 0);
         topcontvbox.pack_end(&savehbox, false, false, 0);
 
         // Stats
@@ -172,7 +169,7 @@ impl App {
               rotybutplus, rotybutminus,
               rotzbutplus, rotzbutminus,
               zoomin, zoomout,
-              saveimagebut, savevoxelsbut, savedebugbut,
+              saveimagebut, savevoxelsbut,
               statsfullval, statstraceval, bulbvulk, state
             }
     }
@@ -242,11 +239,6 @@ impl App {
             let app = apprc.clone();
 
             appb.savevoxelsbut.connect_clicked(move |_| { app.borrow_mut().bulbvulk.save_voxels(); });
-        }
-        {
-            let app = apprc.clone();
-
-            appb.savedebugbut.connect_clicked(move |_| { app.borrow_mut().bulbvulk.save_debug(); });
         }
     }
 
