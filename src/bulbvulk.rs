@@ -261,7 +261,21 @@ impl Bulbvulk {
         // Wait for it
         future.wait(None).unwrap();
 
-        // TODO: copy it to result
+        // copy it to result - there has to be a better way of doing this!
+        let cpubuf = unsafe { buffer::cpu_access::CpuAccessibleBuffer::<[u8]>::uninitialized_array(self.vdevice.clone(),
+                                                                                          4*self.imagewidth*self.imageheight,
+                                                                                          vulkano::buffer::BufferUsage::all()).unwrap() };
+        let combuf2 = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
+                     .copy_image_to_buffer(self.rayimg.clone(), cpubuf.clone()).unwrap()
+                     .build().unwrap();
+        // Engage!
+        let future2 = sync::now(self.vdevice.clone())
+                     .then_execute(self.vqueue.clone(), combuf2).unwrap()
+                     .then_signal_fence_and_flush().unwrap();
+        // Wait for it
+        future2.wait(None).unwrap();
+        let cpubufread = cpubuf.read().unwrap();
+        result.copy_from_slice(&cpubufread.to_owned());
     }
 
     pub fn save_voxels(&mut self) {
