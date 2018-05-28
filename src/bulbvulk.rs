@@ -67,12 +67,12 @@ unsafe impl pipeline_layout::PipelineLayoutDesc for MandLayout {
             }
         }
 
-        // We have no push constants
-        fn num_push_constants_ranges(&self) -> usize { 0 }
+        // We have one push constant (power)
+        fn num_push_constants_ranges(&self) -> usize { 1 }
         fn push_constants_range(&self, num: usize) -> Option<pipeline_layout::PipelineLayoutDescPcRange> {
-            if num != 0 || 0 == 0 { return None; }
+            if num != 0 { return None; }
             Some(pipeline_layout::PipelineLayoutDescPcRange { offset: 0,
-                                             size: 0,
+                                             size: 4,
                                              stages: descriptor::ShaderStages::all() })
         }
 
@@ -216,7 +216,7 @@ impl Bulbvulk {
         let vsize32 = self.voxelsize as u32;
         let combuf = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
                      .dispatch([vsize32, vsize32, vsize32],
-                               self.mandpipe.clone(), set.clone(), ( /* push constants?? */)).unwrap()
+                               self.mandpipe.clone(), set.clone(), power).unwrap()
                      .build().unwrap();
         // Engage!
         let future = sync::now(self.vdevice.clone())

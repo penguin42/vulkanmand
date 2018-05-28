@@ -8,6 +8,10 @@ layout(std430, binding = 0) buffer Voxels
   uint data[];
 } voxels;
 
+layout(std430,push_constant, binding = 0) uniform Pc {
+  float power;
+} pc;
+
 
 void main() {
   vec3 size = gl_NumWorkGroups;
@@ -19,7 +23,7 @@ void main() {
   vec3 here = scale * (hereraw - halfsize) / size;
 
   int maxit = 80;
-  float mandpow = 8.0; // TODO: Pass in
+  float mandpow = pc.power;
   lowp int i;
   vec3 l;
   for (i=0, l=vec3(0.0);
