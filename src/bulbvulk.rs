@@ -111,7 +111,7 @@ unsafe impl pipeline_layout::PipelineLayoutDesc for RayLayout {
                            multisampled: false,
                            dimensions: descriptor::DescriptorImageDescDimensions::TwoDimensional,
                            array_layers: descriptor::DescriptorImageDescArray::NonArrayed,
-                           format: Some(format::Format::B8G8R8A8Uint), // ?
+                           format: Some(format::Format::R8G8B8A8Uint), // ?
                         }),
                     }),
                 _ => None,
@@ -140,7 +140,7 @@ pub struct Bulbvulk {
     vqueue: Arc<device::Queue>,
 
     voxelbuf: Arc<buffer::device_local::DeviceLocalBuffer<[u32]>>,
-    rayimg: Arc<image::StorageImage<format::B8G8R8A8Uint>>,
+    rayimg: Arc<image::StorageImage<format::R8G8B8A8Uint>>,
 
     mandpipe: Arc<ComputePipeline<pipeline_layout::PipelineLayout<MandLayout>>>,
     raypipe: Arc<ComputePipeline<pipeline_layout::PipelineLayout<RayLayout>>>,
@@ -171,7 +171,7 @@ impl Bulbvulk {
 
         let rayimg = image::StorageImage::with_usage(vdevice.clone(),
                                                      image::Dimensions::Dim2d { width: imagewidth as u32, height: imageheight as u32},
-                                                     format::B8G8R8A8Uint,
+                                                     format::R8G8B8A8Uint,
                                                      image::ImageUsage { storage: true, transfer_source: true,
                                                                          ..image::ImageUsage::none()},
                                                      vdevice.active_queue_families()).unwrap();
@@ -286,7 +286,7 @@ impl Bulbvulk {
             self.imageheight = height;
             self.rayimg = image::StorageImage::with_usage(self.vdevice.clone(),
                                                      image::Dimensions::Dim2d { width: self.imagewidth as u32, height: self.imageheight as u32},
-                                                     format::B8G8R8A8Uint,
+                                                     format::R8G8B8A8Uint,
                                                      image::ImageUsage { storage: true, transfer_source: true,
                                                                          ..image::ImageUsage::none()},
                                                      self.vdevice.active_queue_families()).unwrap();
