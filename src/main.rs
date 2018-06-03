@@ -4,8 +4,6 @@ extern crate glib;
 extern crate gtk;
 extern crate cairo;
 extern crate nalgebra as na;
-#[macro_use]
-extern crate lazy_static;
 
 use gtk::*;
 use cairo::*;

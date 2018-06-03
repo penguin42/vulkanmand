@@ -15,30 +15,11 @@ use self::vulkano::descriptor::pipeline_layout;
 use self::vulkano::device;
 use self::vulkano::format;
 use self::vulkano::image;
-use self::vulkano::image::ImageAccess;
 use self::vulkano::instance;
 use self::vulkano::pipeline::shader;
 use self::vulkano::pipeline::ComputePipeline;
 use self::vulkano::sync;
 use self::vulkano::sync::GpuFuture;
-
-// I'd like these to be part of Bulbvulk, but that
-// gets passed by references in device handlers, but I don't
-// really want to force it to be static
-
-lazy_static! {
-    static ref VINSTANCE: Arc<instance::Instance> = {
-        let vitmp = instance::Instance::new(None,
-                                       &instance::InstanceExtensions::none(),
-                                       None).unwrap();
-        vitmp
-    };
-    static ref VPHYSDEVICE: instance::PhysicalDevice<'static> = {
-        let vpdev = instance::PhysicalDevice::enumerate(&VINSTANCE).next().unwrap();
-
-        vpdev
-    };
-}
 
 #[derive(Debug, Copy, Clone)]
 struct MandLayout(descriptor::ShaderStages);
@@ -157,9 +138,14 @@ impl Bulbvulk {
 
         let imagewidth : usize = 4; // Dummy initial dimension
         let imageheight : usize = 4; // Dummy initial dimension
-        let qf = VPHYSDEVICE.queue_families().filter(|q| q.supports_compute() && q.supports_transfers()).next().unwrap();
+        let vinstance = instance::Instance::new(None,
+                                       &instance::InstanceExtensions::none(),
+                                       None).unwrap();
+        let vpdev = Arc::new(instance::PhysicalDevice::enumerate(&vinstance).next().unwrap());
 
-        let (vdevice, mut vqueueiter) = device::Device::new(*VPHYSDEVICE, &instance::Features::none(), &instance::DeviceExtensions::none(), Some((qf, 1.0))).unwrap();
+        let qf = vpdev.queue_families().filter(|q| q.supports_compute() && q.supports_transfers()).next().unwrap();
+
+        let (vdevice, mut vqueueiter) = device::Device::new(*vpdev.clone(), &instance::Features::none(), &instance::DeviceExtensions::none(), Some((qf, 1.0))).unwrap();
         // Only using one queue
         let vqueue = vqueueiter.next().unwrap();
 
@@ -204,7 +190,7 @@ impl Bulbvulk {
                                                             ),
                                  &()).unwrap()
         });
-        println!("Vulkan device: {}", VPHYSDEVICE.name());
+        println!("Vulkan device: {}", vpdev.name());
         Bulbvulk { imagewidth, imageheight, voxelsize,
                    vdevice, vqueue, voxelimg, rayimg,
                    mandpipe, raypipe }
