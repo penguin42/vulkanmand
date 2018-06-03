@@ -3,7 +3,7 @@
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 8) in;
 
 // compile me with glslangValidator -V mandel.comp -o mandel.spv
-layout(r8ui, binding = 0) uniform uimage3D voxels;
+layout(r8ui, binding = 0) uniform writeonly uimage3D voxels;
 
 layout(std430,push_constant, binding = 0) uniform Pc {
   float power;
