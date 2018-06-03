@@ -252,7 +252,7 @@ fn do_redraw(app: &mut App, recalc_fractal: bool) {
     let start = Instant::now();
 
     if recalc_fractal {
-        app.bulbvulk.calc_bulb(256, app.state.power);
+        app.bulbvulk.calc_bulb(384, app.state.power);
     }
     app.outputimage.set_from_surface(None);
     {
