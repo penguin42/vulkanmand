@@ -3,10 +3,7 @@
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 8) in;
 
 // compile me with glslangValidator -V mandel.comp -o mandel.spv
-layout(std430, binding = 0) buffer Voxels
-{
-  uint data[];
-} voxels;
+layout(r8ui, binding = 0) uniform uimage3D voxels;
 
 layout(std430,push_constant, binding = 0) uniform Pc {
   float power;
@@ -19,6 +16,7 @@ void main() {
   vec3 halfsize = size / 2.0;
   // I'm running with a local size of 1, so I think this makes index calcs easy
   vec3 hereraw = gl_GlobalInvocationID;
+  ivec3 hererawi = ivec3(hereraw.x, hereraw.y, hereraw.z);
 
   vec3 here = scale * (hereraw - halfsize) / size;
 
@@ -41,10 +39,7 @@ void main() {
 
     l = next + here;
   }
-  uint index = gl_GlobalInvocationID.z * gl_NumWorkGroups.y * gl_NumWorkGroups.x +
-               gl_GlobalInvocationID.y * gl_NumWorkGroups.x +
-               gl_GlobalInvocationID.x;
               
-  voxels.data[index] = i;
+  imageStore(voxels, hererawi, uvec4(i, i, i, i) );
 }
 

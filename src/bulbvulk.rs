@@ -8,7 +8,6 @@ use std::fs::File;
 use std::io::*;
 use std::sync::Arc;
 use self::vulkano::buffer;
-use self::vulkano::buffer::BufferAccess;
 use self::vulkano::command_buffer;
 use self::vulkano::descriptor::descriptor;
 use self::vulkano::descriptor::descriptor_set;
@@ -58,9 +57,12 @@ unsafe impl pipeline_layout::PipelineLayoutDesc for MandLayout {
                       array_count: 1,
                       stages: descriptor::ShaderStages { compute: true, ..descriptor::ShaderStages::none() },
                       readonly: false,
-                      ty: descriptor::DescriptorDescTy::Buffer(descriptor::DescriptorBufferDesc {
-                          dynamic: Some(false),  // ?
-                          storage: true, // ?
+                      ty: descriptor::DescriptorDescTy::Image(descriptor::DescriptorImageDesc {
+                          sampled: false,
+                          multisampled: false,
+                          dimensions: descriptor::DescriptorImageDescDimensions::ThreeDimensional,
+                          array_layers: descriptor::DescriptorImageDescArray::NonArrayed,
+                          format: Some(format::Format::R8Uint),
                         }),
                     }),
                 _ => None,
@@ -96,9 +98,12 @@ unsafe impl pipeline_layout::PipelineLayoutDesc for RayLayout {
                       array_count: 1,
                       stages: descriptor::ShaderStages { compute: true, ..descriptor::ShaderStages::none() },
                       readonly: true,
-                      ty: descriptor::DescriptorDescTy::Buffer(descriptor::DescriptorBufferDesc {
-                          dynamic: Some(false),  // ?
-                          storage: true, // ?
+                      ty: descriptor::DescriptorDescTy::Image(descriptor::DescriptorImageDesc {
+                          sampled: false,
+                          multisampled: false,
+                          dimensions: descriptor::DescriptorImageDescDimensions::ThreeDimensional,
+                          array_layers: descriptor::DescriptorImageDescArray::NonArrayed,
+                          format: Some(format::Format::R8Uint),
                         }),
                     }),
                 // The output image
@@ -139,7 +144,7 @@ pub struct Bulbvulk {
     vdevice: Arc<device::Device>,
     vqueue: Arc<device::Queue>,
 
-    voxelbuf: Arc<buffer::device_local::DeviceLocalBuffer<[u32]>>,
+    voxelimg: Arc<image::StorageImage<format::R8Uint>>, 
     rayimg: Arc<image::StorageImage<format::R8G8B8A8Uint>>,
 
     mandpipe: Arc<ComputePipeline<pipeline_layout::PipelineLayout<MandLayout>>>,
@@ -158,9 +163,12 @@ impl Bulbvulk {
         // Only using one queue
         let vqueue = vqueueiter.next().unwrap();
 
-        // I want to use an Image, but I can't figure out which image to use here
-        let voxelbuf = buffer::device_local::DeviceLocalBuffer::<[u32]>::array(vdevice.clone(), voxelsize*voxelsize*voxelsize,
-                                                                              buffer::BufferUsage::all(), vdevice.active_queue_families()).unwrap();
+        let voxelimg = image::StorageImage::with_usage(vdevice.clone(),
+                                                     image::Dimensions::Dim3d { width: voxelsize as u32, height: voxelsize as u32, depth: voxelsize as u32},
+                                                     format::R8Uint,
+                                                     image::ImageUsage { storage: true, transfer_source: true,
+                                                                         ..image::ImageUsage::none()},
+                                                     vdevice.active_queue_families()).unwrap();
 
         let mandcs = {
             let mut f = File::open("mandel.spv").unwrap();
@@ -198,7 +206,7 @@ impl Bulbvulk {
         });
         println!("Vulkan device: {}", VPHYSDEVICE.name());
         Bulbvulk { imagewidth, imageheight, voxelsize,
-                   vdevice, vqueue, voxelbuf, rayimg,
+                   vdevice, vqueue, voxelimg, rayimg,
                    mandpipe, raypipe }
     }
 
@@ -206,12 +214,16 @@ impl Bulbvulk {
         if self.voxelsize != size {
             // Need to resize the buffer
             self.voxelsize = size;
-            self.voxelbuf = buffer::device_local::DeviceLocalBuffer::<[u32]>::array(self.vdevice.clone(), self.voxelsize*self.voxelsize*self.voxelsize,
-                                                                              buffer::BufferUsage::all(), self.vdevice.active_queue_families()).unwrap();
+            self.voxelimg = image::StorageImage::with_usage(self.vdevice.clone(),
+                                                     image::Dimensions::Dim3d { width: self.voxelsize as u32, height: self.voxelsize as u32, depth: self.voxelsize as u32},
+                                                     format::R8Uint,
+                                                     image::ImageUsage { storage: true, transfer_source: true,
+                                                                         ..image::ImageUsage::none()},
+                                                     self.vdevice.active_queue_families()).unwrap();
         }
         // Do I really want persistent - this is transitory
         let set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.mandpipe.clone(), 0)
-                  .add_buffer(self.voxelbuf.clone()).unwrap()
+                  .add_image(self.voxelimg.clone()).unwrap()
                   .build().unwrap());
         let vsize32 = self.voxelsize as u32;
         let combuf = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
@@ -293,7 +305,7 @@ impl Bulbvulk {
         }
         // Do I really want persistent - this is transitory
         let set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.raypipe.clone(), 0)
-                  .add_buffer(self.voxelbuf.clone()).unwrap()
+                  .add_image(self.voxelimg.clone()).unwrap()
                   .add_image(self.rayimg.clone()).unwrap()
                   .build().unwrap());
         let combuf = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
@@ -329,12 +341,12 @@ impl Bulbvulk {
         // we copy it into a temporary CPU buffer
         // I'd like to use a CpuBufferPool here but there doesn't seem to be a way to do array
         // allocations
-        let cpubuf = unsafe { buffer::cpu_access::CpuAccessibleBuffer::<[u32]>::uninitialized_array(self.vdevice.clone(),
+        let cpubuf = unsafe { buffer::cpu_access::CpuAccessibleBuffer::<[u8]>::uninitialized_array(self.vdevice.clone(),
                                                                                           self.voxelsize*self.voxelsize*self.voxelsize,
                                                                                           vulkano::buffer::BufferUsage::all()).unwrap() };
 
         let combuf = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
-                       .copy_buffer(self.voxelbuf.clone(), cpubuf.clone()).unwrap()
+                       .copy_image_to_buffer(self.voxelimg.clone(), cpubuf.clone()).unwrap()
                        .build().unwrap();
         let future = sync::now(self.vdevice.clone())
                      .then_execute(self.vqueue.clone(), combuf).unwrap()

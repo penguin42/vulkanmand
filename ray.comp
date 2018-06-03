@@ -3,10 +3,7 @@
 layout(local_size_x = 1, local_size_y = 32) in;
 
 // compile me with glslangValidator -V ray.comp -o ray.spv
-layout(std430, binding = 0) buffer Voxels
-{
-  uint data[];
-} voxels;
+layout(r8ui, binding = 0) uniform uimage3D voxels;
 
 layout(rgba8ui, binding = 1) uniform writeonly uimage2D im;
 
@@ -88,7 +85,7 @@ void main() {
       // OK, we've hit the voxel array
       ivec3 ipvp = ivec3(pvp.x, pvp.y, pvp.z);
 
-      uint value = voxels.data[ipvp.z*vsize.y*vsize.x + ipvp.y*vsize.y + ipvp.x];
+      uint value = imageLoad(voxels, ipvp).r;
       if (value > 79) {
         hitedge = true;
         lighting = lightangle(pc.eye, pvp, pc.light);
