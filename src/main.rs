@@ -1,6 +1,7 @@
 // Based on the tutorial at
 //   https://mmstick.github.io/gtkrs-tutorials/chapter_01.html
 extern crate glib;
+extern crate gdk;
 extern crate gtk;
 extern crate cairo;
 extern crate nalgebra as na;
@@ -44,7 +45,6 @@ impl State {
 pub struct App {
     pub window: Window,
     pub outputis: ImageSurface,
-    pub outputimage: Image,
 
     pub rotxbutminus: Button,
     pub rotxbutplus: Button,
@@ -69,7 +69,7 @@ pub struct App {
 }
 
 impl App {
-    fn new(bulbvulk: Bulbvulk, state: State) -> App {
+    fn new(state: State) -> App {
         let window = Window::new(WindowType::Toplevel);
         window.set_title("Mandelbulb");
         window.set_wmclass("app-name", "Mandelbulb");
@@ -91,6 +91,7 @@ impl App {
         let outputis = ImageSurface::create(Format::Rgb24, 512, 512).unwrap();
 
         let outputimage = Image::new_from_surface(Some(outputis.as_ref()));
+        //let win_id = win.get_id();
         hbox1.pack_start(&outputimage, true, true, 0);
 
         // Set of controls to the right of the image
@@ -162,7 +163,10 @@ impl App {
         powerhbox.pack_end(&powerscale, true, true, 10 /* Pad: To stop slider overlapping text */);
         topvbox.pack_end(&powerhbox, true, true, 0);
 
-        App { window, outputis: outputis, outputimage, powerscale,
+        window.show_all();
+        let bulbvulk = Bulbvulk::new(outputimage);
+
+        App { window, outputis: outputis, powerscale,
               rotxbutplus, rotxbutminus,
               rotybutplus, rotybutminus,
               rotzbutplus, rotzbutminus,
@@ -175,7 +179,6 @@ impl App {
     fn init(mut self)
     {
         do_redraw(&mut self, true);
-        self.window.show_all();
 
         let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(self));
         let appb = apprc.borrow();
@@ -252,10 +255,8 @@ fn do_redraw(app: &mut App, recalc_fractal: bool) {
     if recalc_fractal {
         app.bulbvulk.calc_bulb(384, app.state.power);
     }
-    app.outputimage.set_from_surface(None);
     {
-        let mut id = app.outputis.get_data().unwrap();
-        app.bulbvulk.render_image(&mut id, 512, 512, app.state.eye, app.state.vp_mid, app.state.vp_right, app.state.vp_down, app.state.light );
+        app.bulbvulk.render_image(512, 512, app.state.eye, app.state.vp_mid, app.state.vp_right, app.state.vp_down, app.state.light );
     }
 
     let end = Instant::now();
@@ -267,7 +268,6 @@ fn do_redraw(app: &mut App, recalc_fractal: bool) {
     } else {
         app.statstraceval.set_text(&durationstr);
     }
-    app.outputimage.set_from_surface(Some(app.outputis.as_ref()));
 }
 
 fn do_rotate(app: &mut App, x: f32, y: f32, z: f32) {
@@ -296,7 +296,7 @@ fn do_zoom(app: &mut App, scale: f32) {
 fn main() -> Result<(), glib::error::BoolError> {
     gtk::init()?;
 
-    App::new(Bulbvulk::new(), State::new()).init();
+    App::new(State::new()).init();
 
     gtk::main();
 

@@ -2,7 +2,13 @@
 
 extern crate vulkano;
 extern crate nalgebra as na;
+extern crate gdk_sys;
+extern crate x11_dl;
 extern crate bincode;
+
+use glib::translate::ToGlibPtr;
+use gdk::WindowExt;
+use std;
 use std::ffi::CStr;
 use std::fs::File;
 use std::io::*;
@@ -18,8 +24,11 @@ use self::vulkano::image;
 use self::vulkano::instance;
 use self::vulkano::pipeline::shader;
 use self::vulkano::pipeline::ComputePipeline;
+use self::vulkano::swapchain;
 use self::vulkano::sync;
 use self::vulkano::sync::GpuFuture;
+
+use gtk::*;
 
 #[derive(Debug, Copy, Clone)]
 struct MandLayout(descriptor::ShaderStages);
@@ -126,6 +135,9 @@ pub struct Bulbvulk {
     vqueue: Arc<device::Queue>,
 
     voxelimg: Arc<image::StorageImage<format::R8Uint>>, 
+
+    swsurface: std::sync::Arc<swapchain::Surface<Image>>,
+
     rayimg: Arc<image::StorageImage<format::R8G8B8A8Uint>>,
 
     mandpipe: Arc<ComputePipeline<pipeline_layout::PipelineLayout<MandLayout>>>,
@@ -133,13 +145,13 @@ pub struct Bulbvulk {
 }
 
 impl Bulbvulk {
-    pub fn new() -> Bulbvulk {
+    pub fn new(win: Image) -> Bulbvulk {
         let voxelsize = 4; // Dummy initial dimension
 
         let imagewidth : usize = 4; // Dummy initial dimension
         let imageheight : usize = 4; // Dummy initial dimension
         let vinstance = instance::Instance::new(None,
-                                       &instance::InstanceExtensions::none(),
+                                       &instance::InstanceExtensions { khr_xlib_surface: true, ..instance::InstanceExtensions::none() },
                                        None).unwrap();
         let vpdev = Arc::new(instance::PhysicalDevice::enumerate(&vinstance).next().unwrap());
 
@@ -162,6 +174,32 @@ impl Bulbvulk {
             f.read_to_end(&mut v).unwrap();
             unsafe { shader::ShaderModule::new(vdevice.clone(), &v) }.unwrap()
         };
+
+        // ** TODO: Abstract and make not just X11
+        let scr = win.get_screen();
+        // a gdk::Window ?
+        let gdk_win = win.get_window().unwrap();
+        let enres = gdk_win.ensure_native();
+        println!("ensure_native said: {}\n", enres);
+
+        // Note! This is a gdk display not a X11 display - *mut gdk_sys::GdkDisplay
+        let gdk_display = unsafe { gdk_sys::gdk_window_get_display(gdk_win.to_glib_none().0) };
+        extern {
+            fn gdk_x11_display_get_xdisplay(gdkdisp: *mut gdk_sys::GdkDisplay) -> *mut x11_dl::xlib::Display;
+        }
+        let x11_display = unsafe { gdk_x11_display_get_xdisplay(gdk_display) };
+        // Don't know if x11_display is right?  Also need xid for the window, might need to
+        // ensure_native, and how do we know it's X? (GDK_IS_X11_WINDOW() - how to macro? )
+        // something like gdk_x11_drawable_get_xid(gtk_widget_get_window(widget));
+        extern {
+            fn gdk_x11_window_get_xid(gdkwin: *mut gdk_sys::GdkWindow) -> std::os::raw::c_ulong;
+        }
+        // The 'xid' I'm getting seems to be the outer window?
+        let xid = unsafe { gdk_x11_window_get_xid(gdk_win.to_glib_none().0) };
+
+        let swsurface = unsafe { swapchain::Surface::from_xlib(vinstance.clone(), x11_display, xid, win).unwrap() };
+
+        println!("scr={:?} win_display={:?} x11_display={:?} xid={:?}\n", scr, gdk_display, x11_display, xid);
 
         let rayimg = image::StorageImage::with_usage(vdevice.clone(),
                                                      image::Dimensions::Dim2d { width: imagewidth as u32, height: imageheight as u32},
@@ -193,7 +231,8 @@ impl Bulbvulk {
         println!("Vulkan device: {}", vpdev.name());
         Bulbvulk { imagewidth, imageheight, voxelsize,
                    vdevice, vqueue, voxelimg, rayimg,
-                   mandpipe, raypipe }
+                   mandpipe, raypipe,
+                   swsurface, }
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {
@@ -224,7 +263,7 @@ impl Bulbvulk {
         future.wait(None).unwrap();
     }
 
-    pub fn render_image(&mut self, result: &mut [u8],
+    pub fn render_image(&mut self,
                         width: usize, height: usize,
                         eye: na::Vector3<f32>,
                         vp_mid: na::Vector3<f32>,
@@ -319,7 +358,7 @@ impl Bulbvulk {
         // Wait for it
         future2.wait(None).unwrap();
         let cpubufread = cpubuf.read().unwrap();
-        result.copy_from_slice(&cpubufread.to_owned());
+        // TODO ! result.copy_from_slice(&cpubufread.to_owned());
     }
 
     pub fn save_voxels(&mut self) {

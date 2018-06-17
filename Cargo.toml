@@ -5,6 +5,8 @@ authors = ["Dr. David Alan Gilbert <dave@treblig.org>"]
 
 [dependencies]
 glib = { version = "0.5.0" }
+x11-dl = { version = "2.18.0" }
+gdk = { version = "0.8.0" }
 gdk-sys = { version = "0.6.0" }
 cairo-rs = { version = "0.4.0", features = ["png"] }
 gtk = { version = "0.4.1", features = ["v3_16"] }
