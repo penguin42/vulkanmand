@@ -151,13 +151,19 @@ impl Bulbvulk {
         let imagewidth : usize = 4; // Dummy initial dimension
         let imageheight : usize = 4; // Dummy initial dimension
         let vinstance = instance::Instance::new(None,
-                                       &instance::InstanceExtensions { khr_xlib_surface: true, ..instance::InstanceExtensions::none() },
+                                       &instance::InstanceExtensions {
+                                            khr_surface: true,
+                                            khr_xlib_surface: true,
+                                            ..instance::InstanceExtensions::none()
+                                       },
                                        None).unwrap();
         let vpdev = Arc::new(instance::PhysicalDevice::enumerate(&vinstance).next().unwrap());
 
         let qf = vpdev.queue_families().filter(|q| q.supports_compute() && q.supports_transfers()).next().unwrap();
 
-        let (vdevice, mut vqueueiter) = device::Device::new(*vpdev.clone(), &instance::Features::none(), &instance::DeviceExtensions::none(), Some((qf, 1.0))).unwrap();
+        let (vdevice, mut vqueueiter) = device::Device::new(*vpdev.clone(), &instance::Features::none(),
+                                                            &instance::DeviceExtensions { khr_swapchain: true, ..instance::DeviceExtensions::none() },
+                                                            Some((qf, 1.0))).unwrap();
         // Only using one queue
         let vqueue = vqueueiter.next().unwrap();
 
@@ -200,6 +206,25 @@ impl Bulbvulk {
         let swsurface = unsafe { swapchain::Surface::from_xlib(vinstance.clone(), x11_display, xid, win).unwrap() };
 
         println!("scr={:?} win_display={:?} x11_display={:?} xid={:?}\n", scr, gdk_display, x11_display, xid);
+
+        let surfcaps = swsurface.capabilities(vdevice.physical_device()).unwrap();
+        println!("surface capbilitie={:?}\n", surfcaps);
+        let (surfformat, surfcolourspace) = surfcaps.supported_formats[0];
+        let sharing_mode = sync::SharingMode::Exclusive(vqueue.family().id());
+        let (swapc, swapbuf) = swapchain::Swapchain::new(
+                vdevice.clone(), swsurface.clone(),
+                2, // images in the swap chain - was the minimum it allowed
+                surfformat,
+                surfcaps.min_image_extent, /* Hmm, is this window size? Currently looks like it*/
+                1, // layers/image
+                image::ImageUsage { color_attachment: true, .. image::ImageUsage::none() },
+                sharing_mode,
+                swapchain::SurfaceTransform::Identity,
+                swapchain::CompositeAlpha::Opaque,
+                swapchain::PresentMode::Fifo,
+                true, // Clip that which isn't visible
+                None, // No previous swapchain
+            ).unwrap();
 
         let rayimg = image::StorageImage::with_usage(vdevice.clone(),
                                                      image::Dimensions::Dim2d { width: imagewidth as u32, height: imageheight as u32},
