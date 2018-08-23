@@ -30,6 +30,8 @@ use self::vulkano::sync::GpuFuture;
 
 use gtk::*;
 
+static dummy1: usize = 1;
+
 #[derive(Debug, Copy, Clone)]
 struct MandLayout(descriptor::ShaderStages);
 unsafe impl pipeline_layout::PipelineLayoutDesc for MandLayout {
@@ -136,7 +138,9 @@ pub struct Bulbvulk {
 
     voxelimg: Arc<image::StorageImage<format::R8Uint>>, 
 
-    swsurface: std::sync::Arc<swapchain::Surface<Image>>,
+    swsurface: Arc<swapchain::Surface<usize>>,
+    swapc : Arc<swapchain::Swapchain<usize>>,
+    swapbuf : std::vec::Vec<std::sync::Arc<vulkano::image::SwapchainImage<usize>>>,
 
     rayimg: Arc<image::StorageImage<format::R8G8B8A8Uint>>,
 
@@ -203,7 +207,8 @@ impl Bulbvulk {
         // The 'xid' I'm getting seems to be the outer window?
         let xid = unsafe { gdk_x11_window_get_xid(gdk_win.to_glib_none().0) };
 
-        let swsurface = unsafe { swapchain::Surface::from_xlib(vinstance.clone(), x11_display, xid, win).unwrap() };
+        // The last param here is just for lifetime?
+        let swsurface = unsafe { swapchain::Surface::from_xlib(vinstance.clone(), x11_display, xid, dummy1).unwrap() };
 
         println!("scr={:?} win_display={:?} x11_display={:?} xid={:?}\n", scr, gdk_display, x11_display, xid);
 
@@ -217,7 +222,10 @@ impl Bulbvulk {
                 surfformat,
                 surfcaps.min_image_extent, /* Hmm, is this window size? Currently looks like it*/
                 1, // layers/image
-                image::ImageUsage { color_attachment: true, .. image::ImageUsage::none() },
+                image::ImageUsage { color_attachment: true,
+                                    transfer_source: true,
+                                    transfer_destination: true,
+                                    .. image::ImageUsage::none() },
                 sharing_mode,
                 swapchain::SurfaceTransform::Identity,
                 swapchain::CompositeAlpha::Opaque,
@@ -257,7 +265,7 @@ impl Bulbvulk {
         Bulbvulk { imagewidth, imageheight, voxelsize,
                    vdevice, vqueue, voxelimg, rayimg,
                    mandpipe, raypipe,
-                   swsurface, }
+                   swsurface, swapc, swapbuf, }
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {
@@ -329,6 +337,11 @@ impl Bulbvulk {
            voxelsizez: f32,
            voxelsizegap: f32,
         };
+        let (image_num, acquire_future) = match swapchain::acquire_next_image(self.swapc.clone(), None) {
+            Ok(r) => r,
+            // TODO: OutOfDate
+            Err(err) => panic!("{:?}", err)
+        };
         let seye = eye * self.voxelsize as f32;
         let svp_mid = vp_mid * self.voxelsize as f32;
         let svp_right = vp_right * self.voxelsize as f32;
@@ -353,11 +366,14 @@ impl Bulbvulk {
                                                                          ..image::ImageUsage::none()},
                                                      self.vdevice.active_queue_families()).unwrap();
         }
+        // TODO: acquire_future
+        let curimage = &self.swapbuf[image_num];
+
         // Do I really want persistent - this is transitory
         let set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.raypipe.clone(), 0)
-                  .add_image(self.voxelimg.clone()).unwrap()
-                  .add_image(self.rayimg.clone()).unwrap()
-                  .build().unwrap());
+                  .add_image(self.voxelimg.clone()).expect("add voxelimg")
+                  .add_image(curimage.clone()).expect("add curimage")
+                  .build().expect("pds build"));
         let combuf = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
                      .dispatch([self.imagewidth as u32, self.imageheight as u32, 1],
                                self.raypipe.clone(), set.clone(), pc).unwrap()
@@ -368,22 +384,6 @@ impl Bulbvulk {
                      .then_signal_fence_and_flush().unwrap();
         // Wait for it
         future.wait(None).unwrap();
-
-        // copy it to result - there has to be a better way of doing this!
-        let cpubuf = unsafe { buffer::cpu_access::CpuAccessibleBuffer::<[u8]>::uninitialized_array(self.vdevice.clone(),
-                                                                                          4*self.imagewidth*self.imageheight,
-                                                                                          vulkano::buffer::BufferUsage::all()).unwrap() };
-        let combuf2 = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
-                     .copy_image_to_buffer(self.rayimg.clone(), cpubuf.clone()).unwrap()
-                     .build().unwrap();
-        // Engage!
-        let future2 = sync::now(self.vdevice.clone())
-                     .then_execute(self.vqueue.clone(), combuf2).unwrap()
-                     .then_signal_fence_and_flush().unwrap();
-        // Wait for it
-        future2.wait(None).unwrap();
-        let cpubufread = cpubuf.read().unwrap();
-        // TODO ! result.copy_from_slice(&cpubufread.to_owned());
     }
 
     pub fn save_voxels(&mut self) {
