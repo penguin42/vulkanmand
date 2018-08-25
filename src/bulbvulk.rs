@@ -1,6 +1,5 @@
 // based on the trival.rs example from the ocl crate
 
-extern crate vulkano;
 extern crate nalgebra as na;
 extern crate gdk_sys;
 extern crate x11_dl;
@@ -9,24 +8,36 @@ extern crate bincode;
 use glib::translate::ToGlibPtr;
 use gdk::WindowExt;
 use std;
+use std::borrow::Cow;
 use std::ffi::CStr;
 use std::fs::File;
 use std::io::*;
 use std::sync::Arc;
-use self::vulkano::buffer;
-use self::vulkano::command_buffer;
-use self::vulkano::descriptor::descriptor;
-use self::vulkano::descriptor::descriptor_set;
-use self::vulkano::descriptor::pipeline_layout;
-use self::vulkano::device;
-use self::vulkano::format;
-use self::vulkano::image;
-use self::vulkano::instance;
-use self::vulkano::pipeline::shader;
-use self::vulkano::pipeline::ComputePipeline;
-use self::vulkano::swapchain;
-use self::vulkano::sync;
-use self::vulkano::sync::GpuFuture;
+use vulkano::buffer;
+use vulkano::command_buffer;
+use vulkano::framebuffer::Framebuffer;
+use vulkano::framebuffer::RenderPassAbstract;
+use vulkano::framebuffer::Subpass;
+use vulkano::descriptor::descriptor;
+use vulkano::descriptor::descriptor::ShaderStages;
+use vulkano::descriptor::descriptor_set;
+use vulkano::descriptor::pipeline_layout;
+use vulkano::device;
+use vulkano::format;
+use vulkano::image;
+use vulkano::image::SwapchainImage;
+use vulkano::instance;
+use vulkano::pipeline::shader;
+use vulkano::pipeline::shader::EmptyShaderInterfaceDef;
+use vulkano::pipeline::shader::GraphicsShaderType;
+use vulkano::pipeline::shader::ShaderInterfaceDef;
+use vulkano::pipeline::shader::ShaderInterfaceDefEntry;
+use vulkano::pipeline::ComputePipeline;
+use vulkano::pipeline::GraphicsPipeline;
+use vulkano::pipeline::GraphicsPipelineAbstract;
+use vulkano::swapchain;
+use vulkano::sync;
+use vulkano::sync::GpuFuture;
 
 use gtk::*;
 
@@ -73,58 +84,117 @@ unsafe impl pipeline_layout::PipelineLayoutDesc for MandLayout {
 }
 
 #[derive(Debug, Copy, Clone)]
-struct RayLayout(descriptor::ShaderStages);
-unsafe impl pipeline_layout::PipelineLayoutDesc for RayLayout {
-        // Voxels, output image, hmm and then push constants - are they, for now I say no
-        fn num_sets(&self) -> usize { 1 }
+struct RayVertLayout(descriptor::ShaderStages);
+unsafe impl pipeline_layout::PipelineLayoutDesc for RayVertLayout {
+        // The outputs of a vertex shader don't seem to be a descriptor
+        fn num_sets(&self) -> usize { 0 }
         fn num_bindings_in_set(&self, set: usize) -> Option<usize> {
-            match set {
-                0 => Some(2),
-                _ => None,
-            }
+            match set { _ => None, }
         }
         fn descriptor(&self, set: usize, binding: usize) -> Option<descriptor::DescriptorDesc> {
-            match (set, binding) {
-                // The voxels
-                (0,0) => Some(descriptor::DescriptorDesc {
-                      array_count: 1,
-                      stages: descriptor::ShaderStages { compute: true, ..descriptor::ShaderStages::none() },
-                      readonly: true,
-                      ty: descriptor::DescriptorDescTy::Image(descriptor::DescriptorImageDesc {
-                          sampled: false,
-                          multisampled: false,
-                          dimensions: descriptor::DescriptorImageDescDimensions::ThreeDimensional,
-                          array_layers: descriptor::DescriptorImageDescArray::NonArrayed,
-                          format: Some(format::Format::R8Uint),
-                        }),
-                    }),
-                // The output image
-                (0,1) => Some(descriptor::DescriptorDesc {
-                      array_count: 1,
-                      stages: descriptor::ShaderStages { compute: true, ..descriptor::ShaderStages::none() },
-                      readonly: false,
-                      ty: descriptor::DescriptorDescTy::Image(descriptor::DescriptorImageDesc {
-                           sampled: false,
-                           multisampled: false,
-                           dimensions: descriptor::DescriptorImageDescDimensions::TwoDimensional,
-                           array_layers: descriptor::DescriptorImageDescArray::NonArrayed,
-                           format: Some(format::Format::R8G8B8A8Uint), // ?
-                        }),
-                    }),
-                _ => None,
-            }
+            match (set, binding) { _ => None, }
         }
-
-        // We've got one push constant layout
-        //   Are we supposed to do this as one or as 6 separate vectors??
-        fn num_push_constants_ranges(&self) -> usize { 6 * 16 }
+        fn num_push_constants_ranges(&self) -> usize { 0 }
         fn push_constants_range(&self, num: usize) -> Option<pipeline_layout::PipelineLayoutDescPcRange> {
             if num != 0 { return None; }
-            Some(pipeline_layout::PipelineLayoutDescPcRange { offset: 0,
-                                             size: 6 * 16,
-                                             stages: descriptor::ShaderStages::all() })
+            return None;
         }
+}
 
+// input/output iterators etc from the runtime-shader.rs example
+// This structure will tell Vulkan how input entries of our vertex shader
+// look like.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+struct RayVertOutput;
+unsafe impl ShaderInterfaceDef for RayVertOutput {
+    type Iter = RayVertOutputIter;
+
+    fn elements(&self) -> RayVertOutputIter {
+        RayVertOutputIter(0)
+    }
+}
+// This structure will tell Vulkan how output entries (those passed to next
+// stage) of our vertex shader look like.
+#[derive(Debug, Copy, Clone)]
+struct RayVertOutputIter(u16);
+impl Iterator for RayVertOutputIter {
+    type Item = ShaderInterfaceDefEntry;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0 == 0 {
+            self.0 += 1;
+            return Some(ShaderInterfaceDefEntry {
+                location: 0..1,
+                format: format::Format::R32G32Sfloat,
+                name: Some(Cow::Borrowed("outUV"))
+            })
+        }
+        None
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = (1 - self.0) as usize;
+        (len, Some(len))
+    }
+}
+impl ExactSizeIterator for RayVertOutputIter {
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+struct RayFragOutput;
+unsafe impl ShaderInterfaceDef for RayFragOutput {
+    type Iter = RayFragOutputIter;
+
+    fn elements(&self) -> RayFragOutputIter {
+        RayFragOutputIter(0)
+    }
+}
+// This structure will tell Vulkan how output entries (those passed to next
+// stage) of our vertex shader look like.
+#[derive(Debug, Copy, Clone)]
+struct RayFragOutputIter(u16);
+impl Iterator for RayFragOutputIter {
+    type Item = ShaderInterfaceDefEntry;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0 == 0 {
+            self.0 += 1;
+            return Some(ShaderInterfaceDefEntry {
+                location: 0..1,
+                format: format::Format::R32G32B32A32Sfloat,
+                name: Some(Cow::Borrowed("f_color"))
+            })
+        }
+        None
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = (1 - self.0) as usize;
+        (len, Some(len))
+    }
+}
+impl ExactSizeIterator for RayFragOutputIter {
+}
+
+#[derive(Debug, Copy, Clone)]
+struct RayFragLayout(descriptor::ShaderStages);
+unsafe impl pipeline_layout::PipelineLayoutDesc for RayFragLayout {
+        // The outputs of a fragment shader don't seem to be a descriptor
+        // TODO: Add back our push constants and voxel data
+        fn num_sets(&self) -> usize { 0 }
+        fn num_bindings_in_set(&self, set: usize) -> Option<usize> {
+            match set { _ => None, }
+        }
+        fn descriptor(&self, set: usize, binding: usize) -> Option<descriptor::DescriptorDesc> {
+            match (set, binding) { _ => None, }
+        }
+        fn num_push_constants_ranges(&self) -> usize { 0 }
+        fn push_constants_range(&self, num: usize) -> Option<pipeline_layout::PipelineLayoutDescPcRange> {
+            if num != 0 { return None; }
+            return None;
+        }
 }
 
 pub struct Bulbvulk {
@@ -140,12 +210,14 @@ pub struct Bulbvulk {
 
     swsurface: Arc<swapchain::Surface<usize>>,
     swapc : Arc<swapchain::Swapchain<usize>>,
-    swapbuf : std::vec::Vec<std::sync::Arc<vulkano::image::SwapchainImage<usize>>>,
+    swapbuf : std::vec::Vec<std::sync::Arc<SwapchainImage<usize>>>,
 
     rayimg: Arc<image::StorageImage<format::R8G8B8A8Uint>>,
 
     mandpipe: Arc<ComputePipeline<pipeline_layout::PipelineLayout<MandLayout>>>,
-    raypipe: Arc<ComputePipeline<pipeline_layout::PipelineLayout<RayLayout>>>,
+    raypipe: Arc<GraphicsPipelineAbstract + Send + Sync>,
+
+    raypass: Arc<RenderPassAbstract + Send + Sync>,
 }
 
 impl Bulbvulk {
@@ -163,7 +235,10 @@ impl Bulbvulk {
                                        None).unwrap();
         let vpdev = Arc::new(instance::PhysicalDevice::enumerate(&vinstance).next().unwrap());
 
-        let qf = vpdev.queue_families().filter(|q| q.supports_compute() && q.supports_transfers()).next().unwrap();
+        // Would it make sense to have multiple queue sets, one with just compute?
+        let qf = vpdev.queue_families().filter(|q| q.supports_compute() &&
+                                                   q.supports_transfers() &&
+                                                   q.supports_graphics()).next().unwrap();
 
         let (vdevice, mut vqueueiter) = device::Device::new(*vpdev.clone(), &instance::Features::none(),
                                                             &instance::DeviceExtensions { khr_swapchain: true, ..instance::DeviceExtensions::none() },
@@ -241,8 +316,16 @@ impl Bulbvulk {
                                                                          ..image::ImageUsage::none()},
                                                      vdevice.active_queue_families()).unwrap();
 
-        let raycs = {
-            let mut f = File::open("ray.spv").unwrap();
+        // Simple vertex shader, just gives us a triangle covering the whole window
+        let rayvs = {
+            let mut f = File::open("ray-vert.spv").unwrap();
+            let mut v = vec![];
+            f.read_to_end(&mut v).unwrap();
+            unsafe { shader::ShaderModule::new(vdevice.clone(), &v) }.unwrap()
+        };
+        // The ray tracing fragment shader
+        let rayfs = {
+            let mut f = File::open("ray-frag.spv").unwrap();
             let mut v = vec![];
             f.read_to_end(&mut v).unwrap();
             unsafe { shader::ShaderModule::new(vdevice.clone(), &v) }.unwrap()
@@ -254,17 +337,73 @@ impl Bulbvulk {
                                                             ),
                                  &()).unwrap()
         });
-        let raypipe = Arc::new(unsafe {
-            ComputePipeline::new(vdevice.clone(),
-                                 &raycs.compute_entry_point(CStr::from_bytes_with_nul_unchecked(b"main\0"),
-                                                             RayLayout(descriptor::ShaderStages { compute: true, ..descriptor::ShaderStages::none() })
-                                                            ),
-                                 &()).unwrap()
-        });
+
+        // Renderpass from vulkano triangle example
+        // TODO: Hmm, do we want this more dynamic? Where do we pass my pc's
+        let raypass = Arc::new(single_pass_renderpass!(vdevice.clone(),
+            attachments: {
+                // `color` is a custom name we give to the first and only attachment.
+                color: {
+                    // `load: Clear` means that we ask the GPU to clear the content of this
+                    // attachment at the start of the drawing.
+                    load: Clear,
+                    // `store: Store` means that we ask the GPU to store the output of the draw
+                    // in the actual image. We could also ask it to discard the result.
+                    store: Store,
+                    // `format: <ty>` indicates the type of the format of the image. This has to
+                    // be one of the types of the `vulkano::format` module (or alternatively one
+                    // of your structs that implements the `FormatDesc` trait). Here we use the
+                    // generic `vulkano::format::Format` enum because we don't know the format in
+                    // advance.
+                    format: swapc.format(),
+                    // TODO:
+                    samples: 1,
+                }
+            },
+            pass: {
+                // We use the attachment named `color` as the one and only color attachment.
+                color: [color],
+                // No depth-stencil attachment is indicated with empty brackets.
+                depth_stencil: {}
+            }).unwrap());
+        let ray_vert_main = unsafe {
+            rayvs.graphics_entry_point(CStr::from_bytes_with_nul_unchecked(b"main\0"),
+                                                      EmptyShaderInterfaceDef, // No input to our vertex shader
+                                                      RayVertOutput,
+                                                      RayVertLayout(ShaderStages { vertex: true, ..ShaderStages::none() }),
+                                                      GraphicsShaderType::Vertex
+                                                      ) };
+        let ray_frag_main = unsafe {
+            rayvs.graphics_entry_point(CStr::from_bytes_with_nul_unchecked(b"main\0"),
+                                                      EmptyShaderInterfaceDef, // No input to our fragment shader at the moment
+                                                      RayFragOutput,
+                                                      RayFragLayout(ShaderStages { fragment: true, ..ShaderStages::none() }),
+                                                      GraphicsShaderType::Fragment
+                                                      ) };
+        // Ray pipe from vulkano triangle example crossed with the runtime-shader example
+        let raypipe = Arc::new(GraphicsPipeline::start()
+            // We need to indicate the layout of the vertices.
+            // HMM can't get the type right with this or vertex_input
+            // but then I haven't defined any inputs to my vertex shader
+            // .vertex_input_single_buffer()
+            .vertex_shader(ray_vert_main, ())
+            // The content of the vertex buffer describes a list of triangles.
+            .triangle_list()
+            // Use a resizable viewport set to draw over the entire window
+            .viewports_dynamic_scissors_irrelevant(1)
+            // See `vertex_shader`.
+            .fragment_shader(ray_frag_main, ())
+            // We have to indicate which subpass of which render pass this pipeline is going to be used
+            // in. The pipeline will only be usable from this particular subpass.
+            .render_pass(Subpass::from(raypass.clone(), 0).expect("pipeline/render_pass"))
+            // Now that our builder is filled, we call `build()` to obtain an actual pipeline.
+            .build(vdevice.clone())
+            .expect("raypipe"));
+
         println!("Vulkan device: {}", vpdev.name());
         Bulbvulk { imagewidth, imageheight, voxelsize,
                    vdevice, vqueue, voxelimg, rayimg,
-                   mandpipe, raypipe,
+                   mandpipe, raypass, raypipe,
                    swsurface, swapc, swapbuf, }
     }
 
@@ -369,14 +508,17 @@ impl Bulbvulk {
         // TODO: acquire_future
         let curimage = &self.swapbuf[image_num];
 
+        let fb = Arc::new(Framebuffer::start(self.raypass.clone()).add(curimage.clone()).unwrap().build().unwrap());
+
         // Do I really want persistent - this is transitory
         let set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.raypipe.clone(), 0)
                   .add_image(self.voxelimg.clone()).expect("add voxelimg")
                   .add_image(curimage.clone()).expect("add curimage")
                   .build().expect("pds build"));
         let combuf = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
-                     .dispatch([self.imagewidth as u32, self.imageheight as u32, 1],
-                               self.raypipe.clone(), set.clone(), pc).unwrap()
+                     .begin_render_pass(fb, false /* secondary */, vec![[0.0,0.0,1.0,1.0].into()]).unwrap()
+                     // TODO: .draw
+                     .end_render_pass().unwrap()
                      .build().unwrap();
         // Engage!
         let future = sync::now(self.vdevice.clone())
@@ -393,7 +535,7 @@ impl Bulbvulk {
         // allocations
         let cpubuf = unsafe { buffer::cpu_access::CpuAccessibleBuffer::<[u8]>::uninitialized_array(self.vdevice.clone(),
                                                                                           self.voxelsize*self.voxelsize*self.voxelsize,
-                                                                                          vulkano::buffer::BufferUsage::all()).unwrap() };
+                                                                                          buffer::BufferUsage::all()).unwrap() };
 
         let combuf = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
                        .copy_image_to_buffer(self.voxelimg.clone(), cpubuf.clone()).unwrap()

@@ -5,6 +5,8 @@ extern crate gdk;
 extern crate gtk;
 extern crate cairo;
 extern crate nalgebra as na;
+#[macro_use]
+extern crate vulkano;
 
 use gtk::*;
 use cairo::*;
