@@ -101,46 +101,6 @@ unsafe impl pipeline_layout::PipelineLayoutDesc for RayVertLayout {
         }
 }
 
-// input/output iterators etc from the runtime-shader.rs example
-// This structure will tell Vulkan how input entries of our vertex shader
-// look like.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-struct RayVertOutput;
-unsafe impl ShaderInterfaceDef for RayVertOutput {
-    type Iter = RayVertOutputIter;
-
-    fn elements(&self) -> RayVertOutputIter {
-        RayVertOutputIter(0)
-    }
-}
-// This structure will tell Vulkan how output entries (those passed to next
-// stage) of our vertex shader look like.
-#[derive(Debug, Copy, Clone)]
-struct RayVertOutputIter(u16);
-impl Iterator for RayVertOutputIter {
-    type Item = ShaderInterfaceDefEntry;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.0 == 0 {
-            self.0 += 1;
-            return Some(ShaderInterfaceDefEntry {
-                location: 0..1,
-                format: format::Format::R32G32Sfloat,
-                name: Some(Cow::Borrowed("outUV"))
-            })
-        }
-        None
-    }
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = (1 - self.0) as usize;
-        (len, Some(len))
-    }
-}
-impl ExactSizeIterator for RayVertOutputIter {
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 struct RayFragOutput;
 unsafe impl ShaderInterfaceDef for RayFragOutput {
@@ -369,12 +329,12 @@ impl Bulbvulk {
         let ray_vert_main = unsafe {
             rayvs.graphics_entry_point(CStr::from_bytes_with_nul_unchecked(b"main\0"),
                                                       EmptyShaderInterfaceDef, // No input to our vertex shader
-                                                      RayVertOutput,
+                                                      EmptyShaderInterfaceDef, // No output from our vertex shader other than to gl_Position
                                                       RayVertLayout(ShaderStages { vertex: true, ..ShaderStages::none() }),
                                                       GraphicsShaderType::Vertex
                                                       ) };
         let ray_frag_main = unsafe {
-            rayvs.graphics_entry_point(CStr::from_bytes_with_nul_unchecked(b"main\0"),
+            rayfs.graphics_entry_point(CStr::from_bytes_with_nul_unchecked(b"main\0"),
                                                       EmptyShaderInterfaceDef, // No input to our fragment shader at the moment
                                                       RayFragOutput,
                                                       RayFragLayout(ShaderStages { fragment: true, ..ShaderStages::none() }),
@@ -508,6 +468,7 @@ impl Bulbvulk {
         // TODO: acquire_future
         let curimage = &self.swapbuf[image_num];
 
+        // TODO: Lifetime of this is just wrong, triangle example keeps it
         let fb = Arc::new(Framebuffer::start(self.raypass.clone()).add(curimage.clone()).unwrap().build().unwrap());
 
         // Do I really want persistent - this is transitory
