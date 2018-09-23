@@ -21,20 +21,22 @@ use vulkano::framebuffer::Subpass;
 use vulkano::descriptor::descriptor;
 use vulkano::descriptor::descriptor::ShaderStages;
 use vulkano::descriptor::descriptor_set;
+use vulkano::descriptor::PipelineLayoutAbstract;
 use vulkano::descriptor::pipeline_layout;
 use vulkano::device;
 use vulkano::format;
 use vulkano::image;
 use vulkano::image::SwapchainImage;
 use vulkano::instance;
+use vulkano::pipeline;
 use vulkano::pipeline::shader;
+use vulkano::pipeline::viewport;
 use vulkano::pipeline::shader::EmptyShaderInterfaceDef;
 use vulkano::pipeline::shader::GraphicsShaderType;
 use vulkano::pipeline::shader::ShaderInterfaceDef;
 use vulkano::pipeline::shader::ShaderInterfaceDefEntry;
 use vulkano::pipeline::ComputePipeline;
 use vulkano::pipeline::GraphicsPipeline;
-use vulkano::pipeline::GraphicsPipelineAbstract;
 use vulkano::swapchain;
 use vulkano::sync;
 use vulkano::sync::GpuFuture;
@@ -175,7 +177,10 @@ pub struct Bulbvulk {
     rayimg: Arc<image::StorageImage<format::R8G8B8A8Uint>>,
 
     mandpipe: Arc<ComputePipeline<pipeline_layout::PipelineLayout<MandLayout>>>,
-    raypipe: Arc<GraphicsPipelineAbstract + Send + Sync>,
+    raypipe: Arc<GraphicsPipeline<pipeline::vertex::BufferlessDefinition,
+                                  std::boxed::Box<PipelineLayoutAbstract + Send + Sync + 'static>,
+                                  Arc<RenderPassAbstract + Send + Sync + 'static>
+                                 >>,
 
     raypass: Arc<RenderPassAbstract + Send + Sync>,
 }
@@ -325,7 +330,7 @@ impl Bulbvulk {
                 color: [color],
                 // No depth-stencil attachment is indicated with empty brackets.
                 depth_stencil: {}
-            }).unwrap());
+            }).unwrap()) as Arc<RenderPassAbstract + Send + Sync>;
         let ray_vert_main = unsafe {
             rayvs.graphics_entry_point(CStr::from_bytes_with_nul_unchecked(b"main\0"),
                                                       EmptyShaderInterfaceDef, // No input to our vertex shader
@@ -343,9 +348,7 @@ impl Bulbvulk {
         // Ray pipe from vulkano triangle example crossed with the runtime-shader example
         let raypipe = Arc::new(GraphicsPipeline::start()
             // We need to indicate the layout of the vertices.
-            // HMM can't get the type right with this or vertex_input
-            // but then I haven't defined any inputs to my vertex shader
-            // .vertex_input_single_buffer()
+            .vertex_input(pipeline::vertex::BufferlessDefinition {})
             .vertex_shader(ray_vert_main, ())
             // The content of the vertex buffer describes a list of triangles.
             .triangle_list()
@@ -441,6 +444,7 @@ impl Bulbvulk {
             // TODO: OutOfDate
             Err(err) => panic!("{:?}", err)
         };
+        println!("render_image image_num={}\n", image_num);
         let seye = eye * self.voxelsize as f32;
         let svp_mid = vp_mid * self.voxelsize as f32;
         let svp_right = vp_right * self.voxelsize as f32;
@@ -465,26 +469,41 @@ impl Bulbvulk {
                                                                          ..image::ImageUsage::none()},
                                                      self.vdevice.active_queue_families()).unwrap();
         }
-        // TODO: acquire_future
         let curimage = &self.swapbuf[image_num];
 
         // TODO: Lifetime of this is just wrong, triangle example keeps it
         let fb = Arc::new(Framebuffer::start(self.raypass.clone()).add(curimage.clone()).unwrap().build().unwrap());
 
         // Do I really want persistent - this is transitory
-        let set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.raypipe.clone(), 0)
-                  .add_image(self.voxelimg.clone()).expect("add voxelimg")
-                  .add_image(curimage.clone()).expect("add curimage")
-                  .build().expect("pds build"));
+        // TODO: Not needed until we start passing voxelimg in
+        //let set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.raypipe.clone(), 0)
+        //          .add_image(self.voxelimg.clone()).expect("add voxelimg")
+        //          .add_image(curimage.clone()).expect("add curimage")
+        //          .build().expect("pds build"));
+        let dynamic_state = command_buffer::DynamicState {
+            viewports: Some(vec![viewport::Viewport {
+                origin: [0.0, 0.0],
+                dimensions: [width as f32,height as f32],
+                depth_range: 0.0 .. 1.0,
+            }]),
+            .. command_buffer::DynamicState::none()
+        };
+
         let combuf = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
-                     .begin_render_pass(fb, false /* secondary */, vec![[0.0,0.0,1.0,1.0].into()]).unwrap()
-                     // TODO: .draw
-                     .end_render_pass().unwrap()
-                     .build().unwrap();
+                     .begin_render_pass(fb, false /* secondary */, vec![[0.0,0.0,1.0,1.0].into()]).expect("one time submit/begin render pass")
+                     .draw(self.raypipe.clone(),
+                           &dynamic_state,
+                           pipeline::vertex::BufferlessVertices { vertices: 3, instances: 1 /* ? */ },
+                           
+                           (), ()  // Resources to pass to shaders, but we're empty pipeline
+                           ).expect("draw")
+                     .end_render_pass().expect("one time submit/end render pass")
+                     .build().expect("one time submit/build");
         // Engage!
         let future = sync::now(self.vdevice.clone())
-                     .then_execute(self.vqueue.clone(), combuf).unwrap()
-                     .then_signal_fence_and_flush().unwrap();
+                     .join(acquire_future) // TODO - stuff with previous frame
+                     .then_execute(self.vqueue.clone(), combuf).expect("sync/execute")
+                     .then_signal_fence_and_flush().expect("sync/signal f&f");
         // Wait for it
         future.wait(None).unwrap();
     }
