@@ -28,6 +28,7 @@ use vulkano::format;
 use vulkano::image;
 use vulkano::image::SwapchainImage;
 use vulkano::instance;
+use vulkano::instance::debug::{DebugCallback, MessageTypes};
 use vulkano::pipeline;
 use vulkano::pipeline::shader;
 use vulkano::pipeline::viewport;
@@ -183,6 +184,7 @@ pub struct Bulbvulk {
                                  >>,
 
     raypass: Arc<RenderPassAbstract + Send + Sync>,
+    debug_callback: std::option::Option<DebugCallback>
 }
 
 impl Bulbvulk {
@@ -191,13 +193,43 @@ impl Bulbvulk {
 
         let imagewidth : usize = 4; // Dummy initial dimension
         let imageheight : usize = 4; // Dummy initial dimension
+        let layer = "VK_LAYER_LUNARG_standard_validation";
+        let layers = vec![layer];
         let vinstance = instance::Instance::new(None,
                                        &instance::InstanceExtensions {
+                                            ext_debug_report: true,
                                             khr_surface: true,
                                             khr_xlib_surface: true,
                                             ..instance::InstanceExtensions::none()
                                        },
-                                       None).unwrap();
+                                       layers).unwrap();
+
+        let all = MessageTypes {
+            error: true,
+            warning: true,
+            performance_warning: true,
+            information: true,
+            debug: true,
+        };
+       
+        // Can't let his go out of scope!
+        let debug_callback = DebugCallback::new(&vinstance, all, |msg| {
+            let ty = if msg.ty.error {
+                "error"
+            } else if msg.ty.warning {
+                "warning"
+            } else if msg.ty.performance_warning {
+                "performance_warning"
+            } else if msg.ty.information {
+                "information"
+            } else if msg.ty.debug {
+                "debug"
+            } else {
+                panic!("no-impl");
+            };
+            println!("{} {}: {}", msg.layer_prefix, ty, msg.description);
+        }).ok();
+        
         let vpdev = Arc::new(instance::PhysicalDevice::enumerate(&vinstance).next().unwrap());
 
         // Would it make sense to have multiple queue sets, one with just compute?
@@ -352,6 +384,8 @@ impl Bulbvulk {
             .vertex_shader(ray_vert_main, ())
             // The content of the vertex buffer describes a list of triangles.
             .triangle_list()
+            .cull_mode_back() // ????
+            .front_face_clockwise() // ????
             // Use a resizable viewport set to draw over the entire window
             .viewports_dynamic_scissors_irrelevant(1)
             // See `vertex_shader`.
@@ -367,7 +401,7 @@ impl Bulbvulk {
         Bulbvulk { imagewidth, imageheight, voxelsize,
                    vdevice, vqueue, voxelimg, rayimg,
                    mandpipe, raypass, raypipe,
-                   swsurface, swapc, swapbuf, }
+                   swsurface, swapc, swapbuf, debug_callback }
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {
