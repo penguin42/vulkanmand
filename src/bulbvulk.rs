@@ -31,11 +31,11 @@ use vulkano::instance;
 use vulkano::instance::debug::{DebugCallback, MessageTypes};
 use vulkano::pipeline;
 use vulkano::pipeline::shader;
-use vulkano::pipeline::viewport;
 use vulkano::pipeline::shader::EmptyShaderInterfaceDef;
 use vulkano::pipeline::shader::GraphicsShaderType;
 use vulkano::pipeline::shader::ShaderInterfaceDef;
 use vulkano::pipeline::shader::ShaderInterfaceDefEntry;
+use vulkano::pipeline::viewport;
 use vulkano::pipeline::ComputePipeline;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::swapchain;
@@ -386,8 +386,7 @@ impl Bulbvulk {
             .triangle_list()
             .cull_mode_back() // ????
             .front_face_clockwise() // ????
-            // Use a resizable viewport set to draw over the entire window
-            .viewports_dynamic_scissors_irrelevant(1)
+            .viewports_scissors_dynamic(1)
             // See `vertex_shader`.
             .fragment_shader(ray_frag_main, ())
             // We have to indicate which subpass of which render pass this pipeline is going to be used
@@ -519,6 +518,10 @@ impl Bulbvulk {
                 origin: [0.0, 0.0],
                 dimensions: [width as f32,height as f32],
                 depth_range: 0.0 .. 1.0,
+            }]),
+            scissors: Some(vec![viewport::Scissor {
+                origin: [0, 0],
+                dimensions: [width as u32,height as u32],
             }]),
             .. command_buffer::DynamicState::none()
         };
