@@ -537,6 +537,7 @@ impl Bulbvulk {
         let future = sync::now(self.vdevice.clone())
                      .join(acquire_future) // TODO - stuff with previous frame
                      .then_execute(self.vqueue.clone(), combuf).expect("sync/execute")
+                     .then_swapchain_present(self.vqueue.clone(), self.swapc.clone(), image_num)
                      .then_signal_fence_and_flush().expect("sync/signal f&f");
         // Wait for it
         future.wait(None).unwrap();
