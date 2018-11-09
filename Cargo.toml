@@ -12,4 +12,7 @@ cairo-rs = { version = "0.4.0", features = ["png"] }
 gtk = { version = "0.4.1", features = ["v3_16"] }
 nalgebra = { version = "0.14.2" }
 bincode = { version = "1.0.0" }
-vulkano  = { version = "0.9.0" }
+vulkano  = { version = "0.11.0" }
+
+#[patch.crates-io]
+#vulkano  = { path ='/discs/more/git/vulkano/vulkano' } 
