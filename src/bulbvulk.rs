@@ -472,12 +472,43 @@ impl Bulbvulk {
            voxelsizez: f32,
            voxelsizegap: f32,
         };
-        let (image_num, acquire_future) = match swapchain::acquire_next_image(self.swapc.clone(), None) {
-            Ok(r) => r,
-            // TODO: OutOfDate
-            Err(err) => panic!("{:?}", err)
-        };
-        println!("render_image image_num={}\n", image_num);
+
+        let mut image_num = 0;
+        let mut acquire_future_opt = None;
+
+        let mut recreate_swapchain = true;
+        while recreate_swapchain {
+            let (_image_num, _acquire_future) = match swapchain::acquire_next_image(self.swapc.clone(), None) {
+                Ok(r) => r,
+                Err(swapchain::AcquireError::OutOfDate) => {
+                    println!("render_image OutOfDate!\n");
+                    let surfcaps = self.swsurface.capabilities(self.vdevice.physical_device()).unwrap();
+                    let surfdims = surfcaps.min_image_extent;
+
+                    println!("recreating with size {:?}\n", surfdims);
+                    let (new_swapc, new_swapbuf) = match self.swapc.recreate_with_dimension(surfdims) {
+                        Ok(r)=>r,
+                        // Manual resize, try again
+                        Err(swapchain::SwapchainCreationError::UnsupportedDimensions) => {
+                            println!("swapchain recreation failed - trying again");
+                            continue;
+                        }
+                        Err(err) => panic!("{:?}", err)
+                    };
+                    self.swapc = new_swapc;
+                    self.swapbuf = new_swapbuf;
+                    // TODO rebuildraypass?
+                    continue;
+                },
+                Err(err) => panic!("{:?}", err)
+            };
+            recreate_swapchain = false;
+            image_num = _image_num;
+            acquire_future_opt = Some(_acquire_future);
+        }
+        let acquire_future =acquire_future_opt.expect("No acquire future");
+
+        println!("render_image image_num={} width={} height={}\n", image_num, width, height);
         let seye = eye * self.voxelsize as f32;
         let svp_mid = vp_mid * self.voxelsize as f32;
         let svp_right = vp_right * self.voxelsize as f32;
