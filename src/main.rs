@@ -46,7 +46,7 @@ impl State {
 
 pub struct App {
     pub window: Window,
-    pub outputis: ImageSurface,
+    pub outputimage: Rc<Widget>,
 
     pub rotxbutminus: Button,
     pub rotxbutplus: Button,
@@ -92,9 +92,9 @@ impl App {
         // Display the output image - it's a pixbuf in an Image
         let outputis = ImageSurface::create(Format::Rgb24, 512, 512).unwrap();
 
-        let outputimage = Image::new_from_surface(Some(outputis.as_ref()));
+        let outputimage = Rc::new(Image::new_from_surface(Some(outputis.as_ref())).upcast::<gtk::Widget>() );
         //let win_id = win.get_id();
-        hbox1.pack_start(&outputimage, true, true, 0);
+        hbox1.pack_start(&*outputimage, true, true, 0);
 
         // Set of controls to the right of the image
         let topcontvbox  = Box::new(Orientation::Vertical, 2);
@@ -166,9 +166,9 @@ impl App {
         topvbox.pack_end(&powerhbox, true, true, 0);
 
         window.show_all();
-        let bulbvulk = Bulbvulk::new(outputimage);
+        let bulbvulk = Bulbvulk::new(outputimage.clone());
 
-        App { window, outputis: outputis, powerscale,
+        App { window, outputimage: outputimage, powerscale,
               rotxbutplus, rotxbutminus,
               rotybutplus, rotybutminus,
               rotzbutplus, rotzbutminus,
@@ -192,6 +192,11 @@ impl App {
                 app.borrow_mut().state.power = adj.get_value() as f32;
                 do_redraw(&mut app.borrow_mut(), true);
             });
+        }
+        {
+            let app = apprc.clone();
+
+            appb.outputimage.connect_draw(move |_,_| { do_redraw(&mut app.borrow_mut(), false); Inhibit(true) });
         }
         {
             let app = apprc.clone();
@@ -246,8 +251,8 @@ impl App {
     }
 
     fn save_image(&self) {
-        let mut file = File::create("image.png").unwrap();
-        self.outputis.write_to_png(&mut file).unwrap();
+        //let mut file = File::create("image.png").unwrap();
+        //self.outputis.write_to_png(&mut file).unwrap();
     }
 }
 

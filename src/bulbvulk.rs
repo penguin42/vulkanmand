@@ -12,6 +12,7 @@ use std::borrow::Cow;
 use std::ffi::CStr;
 use std::fs::File;
 use std::io::*;
+use std::rc::Rc;
 use std::sync::Arc;
 use vulkano::buffer;
 use vulkano::command_buffer;
@@ -188,7 +189,7 @@ pub struct Bulbvulk {
 }
 
 impl Bulbvulk {
-    pub fn new(win: Image) -> Bulbvulk {
+    pub fn new(win: Rc<Widget>) -> Bulbvulk {
         let voxelsize = 4; // Dummy initial dimension
 
         let imagewidth : usize = 4; // Dummy initial dimension
