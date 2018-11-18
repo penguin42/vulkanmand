@@ -89,10 +89,8 @@ impl App {
         let hbox1 = Box::new(Orientation::Horizontal, 2);
         topvbox.pack_start(&hbox1, true, true, 0);
 
-        // Display the output image - it's a pixbuf in an Image
-        let outputis = ImageSurface::create(Format::Rgb24, 512, 512).unwrap();
-
-        let outputimage = Rc::new(Image::new_from_surface(Some(outputis.as_ref())).upcast::<gtk::Widget>() );
+        let outputimage = Rc::new(DrawingArea::new().upcast::<gtk::Widget>() );
+        outputimage.set_size_request(512, 512);
         //let win_id = win.get_id();
         hbox1.pack_start(&*outputimage, true, true, 0);
 
@@ -193,11 +191,11 @@ impl App {
                 do_redraw(&mut app.borrow_mut(), true);
             });
         }
-        {
-            let app = apprc.clone();
+        //{
+        //    let app = apprc.clone();
 
-            appb.outputimage.connect_draw(move |_,_| { do_redraw(&mut app.borrow_mut(), false); Inhibit(true) });
-        }
+         //   appb.outputimage.connect_draw(move |_,_| { do_redraw(&mut app.borrow_mut(), false); Inhibit(true) });
+       // }
         {
             let app = apprc.clone();
 
