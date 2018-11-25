@@ -230,7 +230,7 @@ impl Bulbvulk {
             };
             println!("{} {}: {}", msg.layer_prefix, ty, msg.description);
         }).ok();
-        
+
         let vpdev = Arc::new(instance::PhysicalDevice::enumerate(&vinstance).next().unwrap());
 
         // Would it make sense to have multiple queue sets, one with just compute?
@@ -559,7 +559,7 @@ impl Bulbvulk {
         };
 
         let combuf = command_buffer::AutoCommandBufferBuilder::primary_one_time_submit(self.vdevice.clone(), self.vqueue.family()).unwrap()
-                     .begin_render_pass(fb, false /* secondary */, vec![[0.0,0.0,1.0,1.0].into()]).expect("one time submit/begin render pass")
+                     .begin_render_pass(fb, false /* secondary */, vec![[0.0,0.0,1.0,0.0].into()]).expect("one time submit/begin render pass")
                      .draw(self.raypipe.clone(),
                            &dynamic_state,
                            pipeline::vertex::BufferlessVertices { vertices: 3, instances: 1 /* ? */ },
@@ -569,13 +569,14 @@ impl Bulbvulk {
                      .end_render_pass().expect("one time submit/end render pass")
                      .build().expect("one time submit/build");
         // Engage!
-        let future = sync::now(self.vdevice.clone())
+        let mut future = sync::now(self.vdevice.clone())
                      .join(acquire_future) // TODO - stuff with previous frame
                      .then_execute(self.vqueue.clone(), combuf).expect("sync/execute")
                      .then_swapchain_present(self.vqueue.clone(), self.swapc.clone(), image_num)
                      .then_signal_fence_and_flush().expect("sync/signal f&f");
         // Wait for it
         future.wait(None).unwrap();
+        future.cleanup_finished();
     }
 
     pub fn save_voxels(&mut self) {
