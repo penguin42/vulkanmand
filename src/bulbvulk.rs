@@ -146,13 +146,31 @@ impl ExactSizeIterator for RayFragOutputIter {
 struct RayFragLayout(descriptor::ShaderStages);
 unsafe impl pipeline_layout::PipelineLayoutDesc for RayFragLayout {
         // The outputs of a fragment shader don't seem to be a descriptor
-        // TODO: Add back our push constants and voxel data
-        fn num_sets(&self) -> usize { 0 }
+        // TODO: Add back our push constants
+        // Voxels: binding 0 in set 0
+        fn num_sets(&self) -> usize { 1 }
         fn num_bindings_in_set(&self, set: usize) -> Option<usize> {
-            match set { _ => None, }
+            match set {
+                0 => Some(1), // Voxels binding 0 set 0
+                _ => None,
+            }
         }
         fn descriptor(&self, set: usize, binding: usize) -> Option<descriptor::DescriptorDesc> {
-            match (set, binding) { _ => None, }
+            match (set, binding) {
+                (0,0) => Some(descriptor::DescriptorDesc {
+                      array_count: 1,
+                      stages: descriptor::ShaderStages { fragment: true, ..descriptor::ShaderStages::none() },
+                      readonly: false,
+                      ty: descriptor::DescriptorDescTy::Image(descriptor::DescriptorImageDesc {
+                          sampled: false,
+                          multisampled: false,
+                          dimensions: descriptor::DescriptorImageDescDimensions::ThreeDimensional,
+                          array_layers: descriptor::DescriptorImageDescArray::NonArrayed,
+                          format: Some(format::Format::R8Uint),
+                      }),
+                  }),
+                _ => None,
+            }
         }
         fn num_push_constants_ranges(&self) -> usize { 0 }
         fn push_constants_range(&self, num: usize) -> Option<pipeline_layout::PipelineLayoutDescPcRange> {
@@ -540,11 +558,9 @@ impl Bulbvulk {
         let fb = Arc::new(Framebuffer::start(self.raypass.clone()).add(curimage.clone()).unwrap().build().unwrap());
 
         // Do I really want persistent - this is transitory
-        // TODO: Not needed until we start passing voxelimg in
-        //let set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.raypipe.clone(), 0)
-        //          .add_image(self.voxelimg.clone()).expect("add voxelimg")
-        //          .add_image(curimage.clone()).expect("add curimage")
-        //          .build().expect("pds build"));
+        let set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.raypipe.clone(), 0)
+                  .add_image(self.voxelimg.clone()).expect("add voxelimg")
+                  .build().expect("pds build"));
         let dynamic_state = command_buffer::DynamicState {
             viewports: Some(vec![viewport::Viewport {
                 origin: [0.0, 0.0],
@@ -564,7 +580,7 @@ impl Bulbvulk {
                            &dynamic_state,
                            pipeline::vertex::BufferlessVertices { vertices: 3, instances: 1 /* ? */ },
                            
-                           (), ()  // Resources to pass to shaders, but we're empty pipeline
+                           ( set ), ( /* push constants */ )
                            ).expect("draw")
                      .end_render_pass().expect("one time submit/end render pass")
                      .build().expect("one time submit/build");
