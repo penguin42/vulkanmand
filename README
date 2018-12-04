@@ -5,8 +5,11 @@ Feel free to use this code as you like; some is based on
 the Vulkano examples.  Please credit me for the rest.
 
 TODO:
-  Use image rather than buffer for voxels
-  Speed up raytracer (slower than OpenCL)
-    Stop passing byte array for output image to render_image
-  Fix gl_NumWorkGroups use in mandel to allow x/y local sizes
-  stop using storage buffers?
+  Choose the compute queue better (avoid graphics)
+  Fix up the EmptyShaderInterfaceDef's that are just wrong
+  Fix up resizing
+    -> Mayneed to redo the rebuild swapchain code
+  Wayland
+  Move the X/Wayland code out into Vulkano
+  Make the vertex shader plot a cube, do all the transforms
+   and just give the fragment shader the point on the cube it can see
