@@ -259,7 +259,9 @@ fn do_redraw(app: &mut App, recalc_fractal: bool) {
         app.bulbvulk.calc_bulb(384, app.state.power);
     }
     {
-        app.bulbvulk.render_image(512, 512, app.state.eye, app.state.vp_mid, app.state.vp_right, app.state.vp_down, app.state.light );
+        app.bulbvulk.render_image(app.outputimage.get_allocated_width() as usize,
+                                  app.outputimage.get_allocated_height() as usize,
+                                  app.state.eye, app.state.vp_mid, app.state.vp_right, app.state.vp_down, app.state.light );
     }
 
     let end = Instant::now();
