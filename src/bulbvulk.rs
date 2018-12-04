@@ -146,7 +146,6 @@ impl ExactSizeIterator for RayFragOutputIter {
 struct RayFragLayout(descriptor::ShaderStages);
 unsafe impl pipeline_layout::PipelineLayoutDesc for RayFragLayout {
         // The outputs of a fragment shader don't seem to be a descriptor
-        // TODO: Add back our push constants
         // Voxels: binding 0 in set 0
         fn num_sets(&self) -> usize { 1 }
         fn num_bindings_in_set(&self, set: usize) -> Option<usize> {
@@ -172,10 +171,14 @@ unsafe impl pipeline_layout::PipelineLayoutDesc for RayFragLayout {
                 _ => None,
             }
         }
-        fn num_push_constants_ranges(&self) -> usize { 0 }
+        // We've got one push constant layout
+        fn num_push_constants_ranges(&self) -> usize { 1 }
         fn push_constants_range(&self, num: usize) -> Option<pipeline_layout::PipelineLayoutDescPcRange> {
             if num != 0 { return None; }
-            return None;
+            Some(pipeline_layout::PipelineLayoutDescPcRange {
+                     offset: 0,
+                     size: 6 * 16,
+                     stages: descriptor::ShaderStages { fragment: true, ..descriptor::ShaderStages::none() } })
         }
 }
 
@@ -580,7 +583,7 @@ impl Bulbvulk {
                            &dynamic_state,
                            pipeline::vertex::BufferlessVertices { vertices: 3, instances: 1 /* ? */ },
                            
-                           ( set ), ( /* push constants */ )
+                           ( set ), pc
                            ).expect("draw")
                      .end_render_pass().expect("one time submit/end render pass")
                      .build().expect("one time submit/build");
