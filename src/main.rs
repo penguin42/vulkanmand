@@ -181,69 +181,46 @@ impl App {
         let apprc : Rc<RefCell<App>> = Rc::new(RefCell::new(self));
         let appb = apprc.borrow();
         {
-            let powerscale_adjust = appb.powerscale.get_adjustment();
             let app = apprc.clone();
+            let powerscale_adjust = appb.powerscale.get_adjustment();
 
             powerscale_adjust.connect_value_changed(move |adj| {
                 app.borrow_mut().state.power = adj.get_value() as f32;
                 do_redraw(&mut app.borrow_mut(), true);
             });
         }
-        //{
-        //    let app = apprc.clone();
+        //app = apprc.clone();
+        //   appb.outputimage.connect_draw(move |_,_| { do_redraw(&mut app.borrow_mut(), false); Inhibit(true) });
 
-         //   appb.outputimage.connect_draw(move |_,_| { do_redraw(&mut app.borrow_mut(), false); Inhibit(true) });
-       // }
-        {
-            let app = apprc.clone();
+        let mut app = apprc.clone();
+        appb.rotxbutminus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), -1.0, 0.0, 0.0); });
+        
+        app = apprc.clone();
+        appb.rotxbutplus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 1.0, 0.0, 0.0); });
+        
+        app = apprc.clone();
+        appb.rotybutminus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, -1.0, 0.0); });
 
-            appb.rotxbutminus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), -1.0, 0.0, 0.0); });
-        }
-        {
-            let app = apprc.clone();
+        app = apprc.clone();
+        appb.rotybutplus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 1.0, 0.0); });
 
-            appb.rotxbutplus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 1.0, 0.0, 0.0); });
-        }
-        {
-            let app = apprc.clone();
+        app = apprc.clone();
+        appb.rotzbutminus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 0.0, -1.0); });
 
-            appb.rotybutminus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, -1.0, 0.0); });
-        }
-        {
-            let app = apprc.clone();
+        app = apprc.clone();
+        appb.rotzbutplus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 0.0, 1.0); });
 
-            appb.rotybutplus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 1.0, 0.0); });
-        }
-        {
-            let app = apprc.clone();
+        app = apprc.clone();
+        appb.zoomin.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), 1.0/1.2); });
 
-            appb.rotzbutminus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 0.0, -1.0); });
-        }
-        {
-            let app = apprc.clone();
+        app = apprc.clone();
+        appb.zoomout.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), 1.2); });
 
-            appb.rotzbutplus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), 0.0, 0.0, 1.0); });
-        }
-        {
-            let app = apprc.clone();
+        app = apprc.clone();
+        appb.saveimagebut.connect_clicked(move |_| { app.borrow_mut().save_image(); });
 
-            appb.zoomin.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), 1.0/1.2); });
-        }
-        {
-            let app = apprc.clone();
-
-            appb.zoomout.connect_clicked(move |_| { do_zoom(&mut app.borrow_mut(), 1.2); });
-        }
-        {
-            let app = apprc.clone();
-
-            appb.saveimagebut.connect_clicked(move |_| { app.borrow_mut().save_image(); });
-        }
-        {
-            let app = apprc.clone();
-
-            appb.savevoxelsbut.connect_clicked(move |_| { app.borrow_mut().bulbvulk.save_voxels(); });
-        }
+        app = apprc.clone();
+        appb.savevoxelsbut.connect_clicked(move |_| { app.borrow_mut().bulbvulk.save_voxels(); });
     }
 
     fn save_image(&self) {
