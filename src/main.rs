@@ -160,7 +160,7 @@ impl App {
         powerscale.set_value(8.0);
         powerhbox.pack_start(&powerlabel, false, false, 0);
         powerhbox.pack_end(&powerscale, true, true, 10 /* Pad: To stop slider overlapping text */);
-        topvbox.pack_end(&powerhbox, true, true, 0);
+        topvbox.pack_end(&powerhbox, false, true, 0);
 
         window.show_all();
         let bulbvulk = Bulbvulk::new(outputimage.clone());
