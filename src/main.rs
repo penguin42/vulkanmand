@@ -8,6 +8,7 @@ extern crate nalgebra as na;
 extern crate vulkano;
 
 use gtk::*;
+use gdk::WindowExt;
 use std::fs::File;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -189,10 +190,10 @@ impl App {
                 do_redraw(&mut app.borrow_mut(), true);
             });
         }
-        //app = apprc.clone();
-        //   appb.outputimage.connect_draw(move |_,_| { do_redraw(&mut app.borrow_mut(), false); Inhibit(true) });
-
         let mut app = apprc.clone();
+        appb.outputimage.connect_draw(move |_,_| { do_redraw(&mut app.borrow_mut(), false); Inhibit(true) });
+
+        app = apprc.clone();
         appb.rotxbutminus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), -1.0, 0.0, 0.0); });
         
         app = apprc.clone();
@@ -229,6 +230,14 @@ impl App {
     }
 }
 
+// Cause an invalidate which gtk will turn into an event causing the redraw
+fn do_invalidate(app: &mut App) {
+    let gdk_win = app.outputimage.get_window().unwrap();
+    let vis_region = gdk_win.get_visible_region().expect("invalidate region");
+    gdk_win.invalidate_region(&vis_region, false);
+}
+
+// The actual work of doing recalculate/redraw
 fn do_redraw(app: &mut App, recalc_fractal: bool) {
     let start = Instant::now();
 
@@ -267,13 +276,13 @@ fn do_rotate(app: &mut App, x: f32, y: f32, z: f32) {
     // vp_right/vp_down are relative vectors so dont need the translations
     app.state.vp_right = rot * app.state.vp_right;
     app.state.vp_down = rot * app.state.vp_down;
-    do_redraw(app, false);
+    do_invalidate(app);
 }
 
 fn do_zoom(app: &mut App, scale: f32) {
     app.state.vp_right *= scale;
     app.state.vp_down *= scale;
-    do_redraw(app, false);
+    do_invalidate(app);
 }
 fn main() -> Result<(), glib::error::BoolError> {
     gtk::init()?;
