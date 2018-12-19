@@ -1,10 +1,5 @@
 // based on the trival.rs example from the ocl crate
 
-extern crate nalgebra as na;
-extern crate gdk_sys;
-extern crate x11_dl;
-extern crate bincode;
-
 use glib::translate::ToGlibPtr;
 use gdk::WindowExt;
 use std;
@@ -14,31 +9,23 @@ use std::fs::File;
 use std::io::*;
 use std::rc::Rc;
 use std::sync::Arc;
+use vulkano;
 use vulkano::buffer;
 use vulkano::command_buffer;
-use vulkano::framebuffer::Framebuffer;
-use vulkano::framebuffer::RenderPassAbstract;
-use vulkano::framebuffer::Subpass;
+use vulkano::framebuffer::{Framebuffer, RenderPassAbstract, Subpass};
 use vulkano::descriptor::descriptor;
 use vulkano::descriptor::descriptor::ShaderStages;
-use vulkano::descriptor::descriptor_set;
-use vulkano::descriptor::PipelineLayoutAbstract;
-use vulkano::descriptor::pipeline_layout;
+use vulkano::descriptor::{descriptor_set, PipelineLayoutAbstract, pipeline_layout};
 use vulkano::device;
 use vulkano::format;
 use vulkano::image;
 use vulkano::image::SwapchainImage;
 use vulkano::instance;
-use vulkano::instance::debug::{DebugCallback, MessageTypes};
 use vulkano::pipeline;
 use vulkano::pipeline::shader;
-use vulkano::pipeline::shader::EmptyShaderInterfaceDef;
-use vulkano::pipeline::shader::GraphicsShaderType;
-use vulkano::pipeline::shader::ShaderInterfaceDef;
-use vulkano::pipeline::shader::ShaderInterfaceDefEntry;
-use vulkano::pipeline::viewport;
-use vulkano::pipeline::ComputePipeline;
-use vulkano::pipeline::GraphicsPipeline;
+use vulkano::pipeline::shader::{EmptyShaderInterfaceDef, GraphicsShaderType, ShaderInterfaceDef, ShaderInterfaceDefEntry};
+use vulkano::pipeline::{viewport, ComputePipeline, GraphicsPipeline};
+use vulkano::single_pass_renderpass;
 use vulkano::swapchain;
 use vulkano::sync;
 use vulkano::sync::GpuFuture;
@@ -206,7 +193,6 @@ pub struct Bulbvulk {
                                  >>,
 
     raypass: Arc<RenderPassAbstract + Send + Sync>,
-    debug_callback: std::option::Option<DebugCallback>
 }
 
 impl Bulbvulk {
@@ -225,32 +211,6 @@ impl Bulbvulk {
                                             ..instance::InstanceExtensions::none()
                                        },
                                        layers).unwrap();
-
-        let all = MessageTypes {
-            error: true,
-            warning: true,
-            performance_warning: true,
-            information: true,
-            debug: true,
-        };
-       
-        // Can't let his go out of scope!
-        let debug_callback = DebugCallback::new(&vinstance, all, |msg| {
-            let ty = if msg.ty.error {
-                "error"
-            } else if msg.ty.warning {
-                "warning"
-            } else if msg.ty.performance_warning {
-                "performance_warning"
-            } else if msg.ty.information {
-                "information"
-            } else if msg.ty.debug {
-                "debug"
-            } else {
-                panic!("no-impl");
-            };
-            println!("{} {}: {}", msg.layer_prefix, ty, msg.description);
-        }).ok();
 
         let vpdev = Arc::new(instance::PhysicalDevice::enumerate(&vinstance).next().unwrap());
 
@@ -308,7 +268,7 @@ impl Bulbvulk {
 
         let surfcaps = swsurface.capabilities(vdevice.physical_device()).unwrap();
         println!("surface capbilitie={:?}\n", surfcaps);
-        let (surfformat, surfcolourspace) = surfcaps.supported_formats[0];
+        let (surfformat, _surfcolourspace) = surfcaps.supported_formats[0];
         let sharing_mode = sync::SharingMode::Exclusive(vqueue.family().id());
         let (swapc, swapbuf) = swapchain::Swapchain::new(
                 vdevice.clone(), swsurface.clone(),
@@ -422,7 +382,7 @@ impl Bulbvulk {
         Bulbvulk { imagewidth, imageheight, voxelsize,
                    vdevice, vqueue, voxelimg, rayimg,
                    mandpipe, raypass, raypipe,
-                   swsurface, swapc, swapbuf, debug_callback }
+                   swsurface, swapc, swapbuf }
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {
@@ -530,7 +490,6 @@ impl Bulbvulk {
         }
         let acquire_future =acquire_future_opt.expect("No acquire future");
 
-        println!("render_image image_num={} width={} height={}\n", image_num, width, height);
         let seye = eye * self.voxelsize as f32;
         let svp_mid = vp_mid * self.voxelsize as f32;
         let svp_right = vp_right * self.voxelsize as f32;
@@ -583,7 +542,7 @@ impl Bulbvulk {
                            &dynamic_state,
                            pipeline::vertex::BufferlessVertices { vertices: 3, instances: 1 /* ? */ },
                            
-                           ( set ), pc
+                           set, pc
                            ).expect("draw")
                      .end_render_pass().expect("one time submit/end render pass")
                      .build().expect("one time submit/build");

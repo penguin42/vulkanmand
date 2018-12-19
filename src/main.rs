@@ -1,21 +1,14 @@
 // Based on the tutorial at
 //   https://mmstick.github.io/gtkrs-tutorials/chapter_01.html
-extern crate glib;
-extern crate gdk;
-extern crate gtk;
-extern crate nalgebra as na;
-#[macro_use]
-extern crate vulkano;
 
 use gtk::*;
 use gdk::WindowExt;
-use std::fs::File;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
 
 mod bulbvulk;
-use bulbvulk::*;
+use crate::bulbvulk::*;
 
 pub struct State {
     power: f32,
