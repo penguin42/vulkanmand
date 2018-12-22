@@ -9,6 +9,7 @@ use std::fs::File;
 use std::io::*;
 use std::rc::Rc;
 use std::sync::Arc;
+use gobject_sys;
 use vulkano;
 use vulkano::buffer;
 use vulkano::command_buffer;
@@ -29,6 +30,7 @@ use vulkano::single_pass_renderpass;
 use vulkano::swapchain;
 use vulkano::sync;
 use vulkano::sync::GpuFuture;
+use wayland_client; // Make optional?
 
 use gtk::*;
 
@@ -170,6 +172,7 @@ unsafe impl pipeline_layout::PipelineLayoutDesc for RayFragLayout {
 }
 
 pub struct Bulbvulk {
+    win: Rc<Widget>,
     voxelsize: usize, // typically 256 for 256x256x256
 
     imagewidth: usize,
@@ -193,6 +196,8 @@ pub struct Bulbvulk {
                                  >>,
 
     raypass: Arc<RenderPassAbstract + Send + Sync>,
+
+    recreate_counter : i32,
 }
 
 impl Bulbvulk {
@@ -203,14 +208,27 @@ impl Bulbvulk {
         let imageheight : usize = 4; // Dummy initial dimension
         let layer = "VK_LAYER_LUNARG_standard_validation";
         let layers = vec![layer];
-        let vinstance = instance::Instance::new(None,
-                                       &instance::InstanceExtensions {
+        let mut inst_extensions = instance::InstanceExtensions {
                                             ext_debug_report: true,
                                             khr_surface: true,
-                                            khr_xlib_surface: true,
                                             ..instance::InstanceExtensions::none()
-                                       },
-                                       layers).unwrap();
+                                       };
+        let scr = win.get_screen(); // Option<gdk::Screen>
+        // gtk-rs doesn't seem to have the equivalents of the GDK_IS_WAYLAND_DEVICE
+        // macros so we have to do it by type comparison, but I don't think it has ffi
+        // wraps for the wayland types either
+        let scr_type = {
+           println!("scr={:?}\n", scr);
+           scr.unwrap().get_type().name()
+        };
+        println!("scr_type: {:?}\n", scr_type);
+        if scr_type == "GdkWaylandScreen" {
+            inst_extensions.khr_wayland_surface = true;
+        } else {
+            inst_extensions.khr_xlib_surface = true;
+        };
+
+        let vinstance = instance::Instance::new(None, &inst_extensions, layers).unwrap();
 
         let vpdev = Arc::new(instance::PhysicalDevice::enumerate(&vinstance).next().unwrap());
 
@@ -239,8 +257,6 @@ impl Bulbvulk {
             unsafe { shader::ShaderModule::new(vdevice.clone(), &v) }.unwrap()
         };
 
-        // ** TODO: Abstract and make not just X11
-        let scr = win.get_screen();
         // a gdk::Window ?
         let gdk_win = win.get_window().unwrap();
         let enres = gdk_win.ensure_native();
@@ -248,31 +264,48 @@ impl Bulbvulk {
 
         // Note! This is a gdk display not a X11 display - *mut gdk_sys::GdkDisplay
         let gdk_display = unsafe { gdk_sys::gdk_window_get_display(gdk_win.to_glib_none().0) };
-        extern {
-            fn gdk_x11_display_get_xdisplay(gdkdisp: *mut gdk_sys::GdkDisplay) -> *mut x11_dl::xlib::Display;
-        }
-        let x11_display = unsafe { gdk_x11_display_get_xdisplay(gdk_display) };
-        // Don't know if x11_display is right?  Also need xid for the window, might need to
-        // ensure_native, and how do we know it's X? (GDK_IS_X11_WINDOW() - how to macro? )
-        // something like gdk_x11_drawable_get_xid(gtk_widget_get_window(widget));
-        extern {
-            fn gdk_x11_window_get_xid(gdkwin: *mut gdk_sys::GdkWindow) -> std::os::raw::c_ulong;
-        }
-        // The 'xid' I'm getting seems to be the outer window?
-        let xid = unsafe { gdk_x11_window_get_xid(gdk_win.to_glib_none().0) };
 
-        // The last param here is just for lifetime?
-        let swsurface = unsafe { swapchain::Surface::from_xlib(vinstance.clone(), x11_display, xid, dummy1).unwrap() };
+        println!("gdk_display={:?}\n", gdk_display);
 
-        println!("scr={:?} win_display={:?} x11_display={:?} xid={:?}\n", scr, gdk_display, x11_display, xid);
+        let swsurface = {
+            if scr_type == "GdkWaylandScreen" {
+                println!("It's wayland!\n");
+                // I suspect the wayland_client* types I'm using are entirely wrong
+                extern {
+                    fn gdk_wayland_display_get_wl_display(gdkdisp: *mut gdk_sys::GdkDisplay) -> *mut wayland_client::sys::client::wl_display;
+                }
+                let way_display = unsafe { gdk_wayland_display_get_wl_display(gdk_display) };
+
+                extern {
+                    fn gdk_wayland_window_get_wl_surface(gdkwin: *mut gdk_sys::GdkWindow) -> *mut wayland_client::protocol::wl_surface::WlSurface;
+                }
+                let way_surface = unsafe { gdk_wayland_window_get_wl_surface(gdk_win.to_glib_none().0) };
+                unsafe { swapchain::Surface::from_wayland(vinstance.clone(), way_display, way_surface, dummy1).unwrap() }
+            } else {
+                extern {
+                    fn gdk_x11_display_get_xdisplay(gdkdisp: *mut gdk_sys::GdkDisplay) -> *mut x11_dl::xlib::Display;
+                }
+                let x11_display = unsafe { gdk_x11_display_get_xdisplay(gdk_display) };
+                extern {
+                    fn gdk_x11_window_get_xid(gdkwin: *mut gdk_sys::GdkWindow) -> std::os::raw::c_ulong;
+                }
+                let xid = unsafe { gdk_x11_window_get_xid(gdk_win.to_glib_none().0) };
+        
+                println!("x11_display={:?} xid={:?}\n", x11_display, xid);
+                // The last param here is just for lifetime?
+                unsafe { swapchain::Surface::from_xlib(vinstance.clone(), x11_display, xid, dummy1).unwrap() }
+            }
+        };
+
+
 
         let surfcaps = swsurface.capabilities(vdevice.physical_device()).unwrap();
-        println!("surface capbilitie={:?}\n", surfcaps);
+        println!("surface capabilities={:?}\n", surfcaps);
         let (surfformat, _surfcolourspace) = surfcaps.supported_formats[0];
         let sharing_mode = sync::SharingMode::Exclusive(vqueue.family().id());
         let (swapc, swapbuf) = swapchain::Swapchain::new(
                 vdevice.clone(), swsurface.clone(),
-                2, // images in the swap chain - was the minimum it allowed
+                4, // images in the swap chain - was the minimum on wayland
                 surfformat,
                 surfcaps.min_image_extent, /* Hmm, is this window size? Currently looks like it*/
                 1, // layers/image
@@ -379,10 +412,10 @@ impl Bulbvulk {
             .expect("raypipe"));
 
         println!("Vulkan device: {}", vpdev.name());
-        Bulbvulk { imagewidth, imageheight, voxelsize,
+        Bulbvulk { win: win.clone(), imagewidth, imageheight, voxelsize,
                    vdevice, vqueue, voxelimg, rayimg,
                    mandpipe, raypass, raypipe,
-                   swsurface, swapc, swapbuf }
+                   swsurface, swapc, swapbuf, recreate_counter: 0 }
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {
@@ -458,36 +491,52 @@ impl Bulbvulk {
         let mut image_num = 0;
         let mut acquire_future_opt = None;
 
-        let mut recreate_swapchain = true;
-        while recreate_swapchain {
-            let (_image_num, _acquire_future) = match swapchain::acquire_next_image(self.swapc.clone(), None) {
-                Ok(r) => r,
-                Err(swapchain::AcquireError::OutOfDate) => {
-                    println!("render_image OutOfDate!\n");
-                    let surfcaps = self.swsurface.capabilities(self.vdevice.physical_device()).unwrap();
-                    let surfdims = surfcaps.min_image_extent;
+        let mut recreate_swapchain = false;
+        self.recreate_counter+=1;
 
-                    println!("recreating with size {:?}\n", surfdims);
-                    let (new_swapc, new_swapbuf) = match self.swapc.recreate_with_dimension(surfdims) {
-                        Ok(r)=>r,
-                        // Manual resize, try again
-                        Err(swapchain::SwapchainCreationError::UnsupportedDimensions) => {
-                            println!("swapchain recreation failed - trying again");
-                            continue;
-                        }
-                        Err(err) => panic!("{:?}", err)
-                    };
-                    self.swapc = new_swapc;
-                    self.swapbuf = new_swapbuf;
-                    // TODO rebuildraypass?
+        if self.recreate_counter % 10 == 0 {
+            recreate_swapchain = true;
+        }
+
+        let (_image_num, _acquire_future) = loop {
+
+            if (!recreate_swapchain) {
+                match swapchain::acquire_next_image(self.swapc.clone(), None) {
+                    Ok(r) =>
+                        break r,
+                    Err(swapchain::AcquireError::OutOfDate) => {
+                        println!("render_image OutOfDate!\n");
+                        recreate_swapchain = true;
+                    }
+                    Err(err) => panic!("{:?}", err)
+                }
+            }
+            recreate_swapchain = false;
+            // We get here if we need to recreate due to either entering with
+            // recreate set or having set it having tried to do an acquire
+            let surfcaps = self.swsurface.capabilities(self.vdevice.physical_device()).unwrap();
+            let allocation = self.win.get_allocation();
+            let surfdims = [allocation.width as u32,allocation.height as u32];
+
+            println!("recreating with size {:?} allocation: {:?}\n", surfdims, self.win.get_allocation());
+            let (new_swapc, new_swapbuf) = match self.swapc.recreate_with_dimension(surfdims) {
+                Ok(r)=>r,
+                // Manual resize, try again
+                Err(swapchain::SwapchainCreationError::UnsupportedDimensions) => {
+                    println!("swapchain recreation failed - trying again");
                     continue;
-                },
+                }
                 Err(err) => panic!("{:?}", err)
             };
-            recreate_swapchain = false;
-            image_num = _image_num;
-            acquire_future_opt = Some(_acquire_future);
-        }
+            self.swapc = new_swapc;
+            self.swapbuf = new_swapbuf;
+            // TODO rebuildraypass?
+            continue;
+        };
+
+        image_num = _image_num;
+        acquire_future_opt = Some(_acquire_future);
+
         let acquire_future =acquire_future_opt.expect("No acquire future");
 
         let seye = eye * self.voxelsize as f32;
