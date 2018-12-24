@@ -2,7 +2,7 @@
 
 // compile me with glslangValidator -V ray.frag -o ray-frag.spv
 // Voxels in from compute
-layout(r8ui, binding = 0) uniform uimage3D voxels;
+layout(r8ui, binding = 0) uniform readonly uimage3D voxels;
 
 // interpolated coords from vertex shader - runs 0..1,0..1
 layout(location = 0) in vec2 inUV;
