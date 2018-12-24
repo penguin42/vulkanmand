@@ -237,7 +237,8 @@ impl Bulbvulk {
                                                    q.supports_transfers() &&
                                                    q.supports_graphics()).next().unwrap();
 
-        let (vdevice, mut vqueueiter) = device::Device::new(*vpdev.clone(), &device::Features::none(),
+        let (vdevice, mut vqueueiter) = device::Device::new(*vpdev.clone(),
+                                                            &device::Features { shader_storage_image_extended_formats: true, ..device::Features::none() },
                                                             &device::DeviceExtensions { khr_swapchain: true, ..device::DeviceExtensions::none() },
                                                             Some((qf, 1.0))).unwrap();
         // Only using one queue
