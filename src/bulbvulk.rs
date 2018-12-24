@@ -298,7 +298,7 @@ impl Bulbvulk {
             }
         };
 
-
+        assert!(swsurface.is_supported(vqueue.family()).is_ok(), "Swapchain surface not supported by queue family\n");
 
         let surfcaps = swsurface.capabilities(vdevice.physical_device()).unwrap();
         println!("surface capabilities={:?}\n", surfcaps);
