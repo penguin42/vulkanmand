@@ -187,8 +187,6 @@ pub struct Bulbvulk {
     swapc : Arc<swapchain::Swapchain<usize>>,
     swapbuf : std::vec::Vec<std::sync::Arc<SwapchainImage<usize>>>,
 
-    rayimg: Arc<image::StorageImage<format::R8G8B8A8Uint>>,
-
     mandpipe: Arc<ComputePipeline<pipeline_layout::PipelineLayout<MandLayout>>>,
     raypipe: Arc<GraphicsPipeline<pipeline::vertex::BufferlessDefinition,
                                   std::boxed::Box<PipelineLayoutAbstract + Send + Sync + 'static>,
@@ -322,13 +320,6 @@ impl Bulbvulk {
                 None, // No previous swapchain
             ).unwrap();
 
-        let rayimg = image::StorageImage::with_usage(vdevice.clone(),
-                                                     image::Dimensions::Dim2d { width: imagewidth as u32, height: imageheight as u32},
-                                                     format::R8G8B8A8Uint,
-                                                     image::ImageUsage { storage: true, transfer_source: true,
-                                                                         ..image::ImageUsage::none()},
-                                                     vdevice.active_queue_families()).unwrap();
-
         // Simple vertex shader, just gives us a triangle covering the whole window
         let rayvs = {
             let mut f = File::open("ray-vert.spv").unwrap();
@@ -414,7 +405,7 @@ impl Bulbvulk {
 
         println!("Vulkan device: {}", vpdev.name());
         Bulbvulk { win: win.clone(), imagewidth, imageheight, voxelsize,
-                   vdevice, vqueue, voxelimg, rayimg,
+                   vdevice, vqueue, voxelimg,
                    mandpipe, raypass, raypipe,
                    swsurface, swapc, swapbuf, recreate_needed: true }
     }
@@ -550,17 +541,6 @@ impl Bulbvulk {
                                  voxelsizex: self.voxelsize as f32, voxelsizey: self.voxelsize as f32, voxelsizez: self.voxelsize as f32, voxelsizegap: -1.0,
                                };
 
-        if self.imagewidth != width || self.imageheight != height {
-            // Need to resize the buffer
-            self.imagewidth = width;
-            self.imageheight = height;
-            self.rayimg = image::StorageImage::with_usage(self.vdevice.clone(),
-                                                     image::Dimensions::Dim2d { width: self.imagewidth as u32, height: self.imageheight as u32},
-                                                     format::R8G8B8A8Uint,
-                                                     image::ImageUsage { storage: true, transfer_source: true,
-                                                                         ..image::ImageUsage::none()},
-                                                     self.vdevice.active_queue_families()).unwrap();
-        }
         let curimage = &self.swapbuf[image_num];
 
         // TODO: Lifetime of this is just wrong, triangle example keeps it
