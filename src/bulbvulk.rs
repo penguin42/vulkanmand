@@ -197,7 +197,7 @@ pub struct Bulbvulk {
 
     raypass: Arc<RenderPassAbstract + Send + Sync>,
 
-    recreate_counter : i32,
+    recreate_needed : bool,
 }
 
 impl Bulbvulk {
@@ -416,7 +416,7 @@ impl Bulbvulk {
         Bulbvulk { win: win.clone(), imagewidth, imageheight, voxelsize,
                    vdevice, vqueue, voxelimg, rayimg,
                    mandpipe, raypass, raypipe,
-                   swsurface, swapc, swapbuf, recreate_counter: 0 }
+                   swsurface, swapc, swapbuf, recreate_needed: false }
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {
@@ -492,12 +492,9 @@ impl Bulbvulk {
         let mut image_num = 0;
         let mut acquire_future_opt = None;
 
-        let mut recreate_swapchain = false;
-        self.recreate_counter+=1;
+        let mut recreate_swapchain = self.recreate_needed;
 
-        if self.recreate_counter % 10 == 0 {
-            recreate_swapchain = true;
-        }
+        self.recreate_needed = false;
 
         let (_image_num, _acquire_future) = loop {
 
@@ -627,6 +624,10 @@ impl Bulbvulk {
         let cpubufread = cpubuf.read().unwrap();
         let mut file = File::create("voxels.dat").unwrap();
         bincode::serialize_into(&mut file, &cpubufread.to_owned()).unwrap();
+    }
+
+    pub fn note_reconfig(&mut self) {
+        self.recreate_needed = true;
     }
 }
 

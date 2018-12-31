@@ -187,6 +187,14 @@ impl App {
         appb.outputimage.connect_draw(move |_,_| { do_redraw(&mut app.borrow_mut(), false); Inhibit(true) });
 
         app = apprc.clone();
+        appb.outputimage.connect_configure_event(move |_,ec| {
+            app.borrow_mut().bulbvulk.note_reconfig();
+            println!("Reconfigure {:?} {:?}@{:?}\n", ec, ec.get_size(), ec.get_position());
+            false
+        });
+
+
+        app = apprc.clone();
         appb.rotxbutminus.connect_clicked(move |_| { do_rotate(&mut app.borrow_mut(), -1.0, 0.0, 0.0); });
         
         app = apprc.clone();
