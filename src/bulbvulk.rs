@@ -416,7 +416,7 @@ impl Bulbvulk {
         Bulbvulk { win: win.clone(), imagewidth, imageheight, voxelsize,
                    vdevice, vqueue, voxelimg, rayimg,
                    mandpipe, raypass, raypipe,
-                   swsurface, swapc, swapbuf, recreate_needed: false }
+                   swsurface, swapc, swapbuf, recreate_needed: true }
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {

@@ -137,8 +137,12 @@ impl App {
         // Stats
         let statsfullhbox = Box::new(Orientation::Horizontal, 2);
         let statsfullval   = Label::new("---.---");
+        statsfullval.set_max_width_chars(10);
+        statsfullval.set_width_chars(10);
         let statstracehbox = Box::new(Orientation::Horizontal, 2);
         let statstraceval   = Label::new("---.---");
+        statstraceval.set_max_width_chars(10);
+        statstraceval.set_width_chars(10);
         statsfullhbox.pack_start(&Label::new("Recalc (ms):"), true, true, 0);
         statsfullhbox.pack_end(&statsfullval, true, true, 0);
         statstracehbox.pack_start(&Label::new("Rerender (ms)"), true, true, 0);
