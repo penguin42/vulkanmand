@@ -13,7 +13,7 @@ use gobject_sys;
 use vulkano;
 use vulkano::buffer;
 use vulkano::command_buffer;
-use vulkano::framebuffer::{Framebuffer, RenderPassAbstract, Subpass};
+use vulkano::framebuffer::{Framebuffer, FramebufferAbstract, RenderPassAbstract, Subpass};
 use vulkano::descriptor::descriptor;
 use vulkano::descriptor::descriptor::ShaderStages;
 use vulkano::descriptor::{descriptor_set, PipelineLayoutAbstract, pipeline_layout};
@@ -192,6 +192,7 @@ pub struct Bulbvulk {
                                   std::boxed::Box<PipelineLayoutAbstract + Send + Sync + 'static>,
                                   Arc<RenderPassAbstract + Send + Sync + 'static>
                                  >>,
+    fb: std::option::Option<Arc<FramebufferAbstract + Send + Sync>>,
 
     raypass: Arc<RenderPassAbstract + Send + Sync>,
 
@@ -406,8 +407,8 @@ impl Bulbvulk {
         println!("Vulkan device: {}", vpdev.name());
         Bulbvulk { win: win.clone(), imagewidth, imageheight, voxelsize,
                    vdevice, vqueue, voxelimg,
-                   mandpipe, raypass, raypipe,
                    swsurface, swapc, swapbuf, recreate_needed: true }
+                   mandpipe, raypass, raypipe, fb: None,
     }
 
     pub fn calc_bulb(&mut self, size: usize, power: f32) {
@@ -545,6 +546,7 @@ impl Bulbvulk {
 
         // TODO: Lifetime of this is just wrong, triangle example keeps it
         let fb = Arc::new(Framebuffer::start(self.raypass.clone()).add(curimage.clone()).unwrap().build().unwrap());
+        self.fb = Some(fb.clone());
 
         // Do I really want persistent - this is transitory
         let set = Arc::new(descriptor_set::PersistentDescriptorSet::start(self.raypipe.clone(), 0)
